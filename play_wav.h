@@ -68,13 +68,8 @@ enum APW_FILETYPE : char {APW_FILE_SD, APW_FILE_OTHER, APW_FILE_NONE};
 class apwFile
 {
   public:
-    apwFile(void) {
-      reset();
-    }
-    void use(File f) {
-      file = f;
-      fileType = APW_FILE_OTHER;
-    };
+    apwFile(void) {reset();}
+    void use(File f) {file = f;fileType = APW_FILE_OTHER;}
     void open(const char *filename, int mode = FILE_READ);
     void close(void);
     size_t read(void *buf, size_t nbyte);
@@ -109,19 +104,10 @@ enum APW_STATE : char;
     bool isPaused(void);
     bool isStopped(void);
 
-    uint32_t numBits(void) {
-      return bytes * 8;
-    }
-    uint32_t numChannels(void) {
-      return channels;
-    };
-    uint32_t sampleRate(void) {
-      return sample_rate;
-    };
-    //uint8_t instanceID(void) {return my_instance;};
-    uint8_t lastErr(void) {
-      return (int)last_err;
-    };
+    uint32_t numBits(void) {return bytes * 8;}
+    uint32_t numChannels(void) {return channels;}
+    uint32_t sampleRate(void) {return sample_rate;}
+    uint8_t lastErr(void) {return (int)last_err;}
 
     static uint8_t _instances;
     static uint8_t _sz_mem_additional;
@@ -168,24 +154,15 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
 
     bool play(File file, bool paused = false);
     bool play(const char *filename, bool paused = false); // play from SD
-
     bool playRaw(File file, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused = false);
     bool playRaw(const char *filename, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused = false); // from SD
 
-    bool addMemoryForRead(size_t mult) {
-      return addMemory(mult);
-    }; // add memory
-    void togglePlayPause(void) {
-      togglePause();
-    };
-    bool isPlaying(void) {
-      return isRunning();
-    };
-    uint32_t positionMillis(void);
-    uint32_t lengthMillis(void);
-    uint32_t channelMask(void) {
-      return channelmask;
-    };
+    bool addMemoryForRead(size_t mult) {return addMemory(mult);} // add memory
+    void togglePlayPause(void) {togglePause();}
+    bool isPlaying(void) {return isRunning();}
+    uint32_t positionMillis(void)
+    uint32_t lengthMillis(void)
+    uint32_t channelMask(void) {return channelmask;}
 
   private:
     virtual void update(void);
@@ -210,20 +187,12 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
 
     bool writeHeader(apwFile file);             // updates header of a file
     bool writeHeader(const char *filename);         // updates header of a file on SD
-    bool writeHeader(void) {
-      return writeHeader(wavfile);
-    };  // updates header of current file
+    bool writeHeader(void) {return writeHeader(wavfile);}  // updates header of current file
 
-    bool isRecording(void) {
-      return isRunning();
-    };
+    bool isRecording(void) {return isRunning();}
     uint32_t lengthMillis(void);
-    bool addMemoryForWrite(size_t mult) {
-      return addMemory(mult);
-    }; // add memory
-    void toggleRecordPause(void) {
-      togglePause();
-    };
+    bool addMemoryForWrite(size_t mult) {return addMemory(mult);} // add memory
+    void toggleRecordPause(void) {togglePause();}
 
   private:
     virtual void update(void);
