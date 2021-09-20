@@ -945,6 +945,22 @@ void  AudioPlayWav::update(void)
 
   unsigned int chan;
 
+  // allocate the audio blocks to transmit
+  chan = 0;
+  do {
+    queue[chan] = AudioStream::allocate();
+    if ( unlikely(queue[chan] == nullptr) )
+    {
+      for (unsigned int i = 0; i != chan; ++i)
+        AudioStream::release(queue[i]);
+      last_err = ERR_NO_AUDIOBLOCKS;
+      LOGE("Waveplayer stopped: Not enough AudioMemory().");
+      stop();
+      return;
+    }
+  } while (++chan < channels);
+
+
   if (buffer_rd >= sz_mem) buffer_rd = 0;
   if (updateStep == my_instance &&
       buffer_rd == 0) //! rmv to dbg interleave
@@ -972,22 +988,6 @@ void  AudioPlayWav::update(void)
       }
     }
   }
-
-  // allocate the audio blocks to transmit
-  chan = 0;
-  do {
-    queue[chan] = AudioStream::allocate();
-    if ( unlikely(queue[chan] == nullptr) )
-    {
-      for (unsigned int i = 0; i != chan; ++i)
-        AudioStream::release(queue[i]);
-      last_err = ERR_NO_AUDIOBLOCKS;
-      LOGE("Waveplayer stopped: Not enough AudioMemory().");
-      stop();
-      return;
-    }
-  } while (++chan < channels);
-
 
   // copy the samples to the audio blocks:
   buffer_rd += decoder(buffer, buffer_rd, queue, channels);
@@ -1378,13 +1378,6 @@ void  AudioRecordWav::update(void)
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
 
-  if (buffer_wr >= sz_mem) buffer_wr = 0;
-  if (updateStep == my_instance && buffer_wr == 0)
-  {
-    wavfile.writeInISR(&buffer[buffer_wr_start], sz_mem - buffer_wr_start);
-    buffer_wr_start = 0;
-  }
-
   unsigned int chan;
   chan = 0;
   do
@@ -1393,22 +1386,28 @@ void  AudioRecordWav::update(void)
     if (!queue[chan]) queue[chan] = (audio_block_t*)&zeroblock; // ... data of all zeros
   } while (++chan < channels);
 
-  buffer_wr += encoder(buffer, buffer_wr, queue, channels);
+  if (buffer_wr >= sz_mem) buffer_wr = 0;
+  if (updateStep == my_instance && buffer_wr == 0)
+  {
+    wavfile.writeInISR(&buffer[buffer_wr_start], sz_mem - buffer_wr_start);
+    buffer_wr_start = 0;
+  }
 
-  ++data_length;
+  buffer_wr += encoder(buffer, buffer_wr, queue, channels);
 
   // release queues
   chan = 0;
   do
   {
     if (likely(queue[chan] != nullptr
-               && queue[chan] != (audio_block_t*)&zeroblock)) // don't release our block of zeroes!
+        && queue[chan] != (audio_block_t*)&zeroblock)) // don't release our block of zeroes!
     {
       AudioStream::release(queue[chan]);
       queue[chan] = nullptr; // < why is this needed?
     }
   } while (++chan < channels);
 
+	++data_length;
 }
 #endif //enable
 

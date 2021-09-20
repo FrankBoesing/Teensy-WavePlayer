@@ -1,7 +1,7 @@
 {
   "name": "Teensy WavePlayer",
   "keywords": "Audio",
-  "description": "",
+  "description": "Extended Wave Player and Recorder",
   "authors": [
     {
         "name": "Frank Boesing",
