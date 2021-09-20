@@ -160,8 +160,8 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     bool addMemoryForRead(size_t mult) {return addMemory(mult);} // add memory
     void togglePlayPause(void) {togglePause();}
     bool isPlaying(void) {return isRunning();}
-    uint32_t positionMillis(void)
-    uint32_t lengthMillis(void)
+    uint32_t positionMillis(void);
+    uint32_t lengthMillis(void);
     uint32_t channelMask(void) {return channelmask;}
 
   private:
