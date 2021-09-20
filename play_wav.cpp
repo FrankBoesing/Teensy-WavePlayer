@@ -360,6 +360,8 @@ void AudioBaseWav::freeBuffer(void)
 
 
 //----------------------------------------------------------------------------------------------------
+#pragma GCC push_options
+#pragma GCC optimize ("unroll-loops")
 
 // 8 bit unsigned:
 __attribute__((hot)) static
@@ -540,6 +542,7 @@ size_t decode_16bit_bigendian(int8_t buffer[], size_t buffer_rd, audio_block_t *
 __attribute__((hot)) static
 size_t decode_24bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
 {
+  //TODO: Optimize
 	size_t i = 0;
 	uint8_t *p = (uint8_t*) &buffer[buffer_rd];
 	do {
@@ -566,6 +569,7 @@ static const _tEncoderDecoder decoders[APW_NONE] = {
 //- ...but may be useful for sample rate conversion or playback speed variation
 //- play float formats?
 
+#pragma GCC pop_options
 //----------------------------------------------------------------------------------------------------
 
 bool AudioPlayWav::play(File file, const bool paused)
@@ -1088,6 +1092,9 @@ typedef struct {
 
 
 //----------------------------------------------------------------------------------------------------
+#pragma GCC push_options
+#pragma GCC optimize ("unroll-loops")
+
 // 8 bit unsigned:
 __attribute__((hot)) static
 size_t encode_8bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
@@ -1160,8 +1167,10 @@ size_t encode_16bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], c
 
 static const _tEncoderDecoder encoders[APW_NONE] = {
   encode_8bit, encode_8bit, encode_8bit,
-  encode_16bit, encode_16bit
+  encode_16bit, encode_16bit, encode_16bit
 };
+
+#pragma GCC pop_options
 //----------------------------------------------------------------------------------------------------
 #if 1
 
