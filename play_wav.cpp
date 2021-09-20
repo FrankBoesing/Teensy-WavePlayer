@@ -42,11 +42,11 @@
 #define LOGPRINTLEVEL
 #include <TeensyLogger.h>
 #else
-#define LOGE {}
-#define LOGD {}
-#define LOGW {}
-#define LOGI {}
-#define LOGV {}
+#define LOGE(...) {}
+#define LOGD(...) {}
+#define LOGW(...) {}
+#define LOGI(...) {}
+#define LOGV(...) {}
 #endif
 
 #ifdef PACKED
