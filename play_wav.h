@@ -43,7 +43,7 @@ const int _AudioRecordWav_MaxChannels = 4;
 
 enum APW_FORMAT { APW_8BIT_UNSIGNED = 0, APW_8BIT_SIGNED, APW_ULAW,
                   APW_16BIT_SIGNED, APW_16BIT_SIGNED_BIGENDIAN,
-                  APW_NONE
+									APW_24BIT_SIGNED, APW_NONE
                 };
 
 enum APW_ERR	{ ERR_OK = 0,              // no Error
@@ -96,7 +96,7 @@ class apwFile
 
 enum APW_STATE : char;
 
-  class AudioBaseWav
+class AudioBaseWav
 {
   public:
     void pause(bool pause);
@@ -127,17 +127,17 @@ enum APW_STATE : char;
     bool addMemory(size_t mult);
 
     apwFile wavfile;
-    size_t sz_mem;              // size of buffer
+    size_t sz_mem;              	// size of buffer
     int8_t* buffer;
     unsigned int sample_rate;
     unsigned int channels;        // #of channels in the wave file
-    int data_length;                // number of frames remaining in file /# of recorded frames
+    int data_length;              // number of frames remaining in file /# of recorded frames
     APW_FORMAT dataFmt;
-    uint8_t my_instance;                // instance id
-    uint8_t bytes;            // 1 or 2 bytes?
-    APW_STATE state;            // play status (stop, pause, running)
+    uint8_t my_instance;          // instance id
+    uint8_t bytes;            		// 1 or 2 bytes?
+    APW_STATE state;            	// play status (stop, pause, running)
     APW_ERR last_err;
-    uint8_t padding;                  // value to pad buffer at EOF
+    uint8_t padding;              // value to pad buffer at EOF
     int8_t updateStep = -1;
 
 };
@@ -170,7 +170,7 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     bool readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState );
     audio_block_t *queue[_AudioPlayWav_MaxChannels];
     _tEncoderDecoder decoder;
-    size_t total_length;      // number of audio data bytes in file
+    size_t total_length;      			// number of audio data bytes in file
     size_t buffer_rd;
     uint32_t channelmask;           // dwChannelMask
 };
@@ -185,9 +185,9 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
     bool record(File file, APW_FORMAT fmt, unsigned int channels, bool paused = false);
     bool record(const char *filename, APW_FORMAT fmt, unsigned int channels, bool paused = false);
 
-    bool writeHeader(apwFile file);             // updates header of a file
-    bool writeHeader(const char *filename);         // updates header of a file on SD
-    bool writeHeader(void) {return writeHeader(wavfile);}  // updates header of current file
+    bool writeHeader(apwFile file);            						 	// updates header of a file
+    bool writeHeader(const char *filename);         				// updates header of a file on SD
+    bool writeHeader(void) {return writeHeader(wavfile);}  	// updates header of current file
 
     bool isRecording(void) {return isRunning();}
     uint32_t lengthMillis(void);

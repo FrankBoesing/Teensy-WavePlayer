@@ -18,6 +18,7 @@ with additional stability and functionality.
 - n channel 8 bit unsigned *.wav
 - n channel u-law *.wav
 - n channel 16 bit signed *.wav
+- n channel 24 bit signed *.wav
 - n channel 8 bit signed *.aiff
 - n channel 8 bit unsigned *.aifc
 - n channel u-law *.aifc (Apple, non ccitt)

@@ -72,7 +72,7 @@ enum APW_STATE : char {STATE_STOP, STATE_PAUSED, STATE_RUNNING};
 static const float audioBlockMs = 1000 * AUDIO_BLOCK_SAMPLES / AUDIO_SAMPLE_RATE_EXACT; // block time ms (default: 2.9)
 static const float msPerSample = 1000.0f / AUDIO_SAMPLE_RATE_EXACT;
 static const audio_block_t zeroblock = {0}; // required to deal gracefully with NULL block
-static const uint8_t bytesPerSample[APW_NONE] = {1, 1, 1, 2, 2};
+static const uint8_t bytesPerSample[APW_NONE] = {1, 1, 1, 2, 2, 3};
 
 
 //----------------------------------------------------------------------------------------------------
@@ -266,6 +266,7 @@ INLINE size_t apwFile::writeInISR(void *buf, size_t nbyte)
 uint8_t AudioBaseWav::_instances = 0;
 uint8_t AudioBaseWav::_sz_mem_additional = 1;
 
+FLASHMEM
 AudioBaseWav::AudioBaseWav(void)
 {
   reset();
@@ -278,6 +279,7 @@ AudioBaseWav::AudioBaseWav(void)
 
 }
 
+FLASHMEM
 AudioBaseWav::~AudioBaseWav(void)
 {
   state = STATE_STOP;
@@ -534,9 +536,28 @@ size_t decode_16bit_bigendian(int8_t buffer[], size_t buffer_rd, audio_block_t *
 }
 
 
+// 24 bit:
+__attribute__((hot)) static
+size_t decode_24bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+{
+	size_t i = 0;
+	uint8_t *p = (uint8_t*) &buffer[buffer_rd];
+	do {
+		unsigned int chan = 0;
+		uint16_t sample;
+		do {
+			p++;
+			sample = *(uint16_t*)p; //note, this involves unaligned reads.
+			p+=2;
+			queue[chan]->data[i] = sample;
+		} while (++chan < channels);
+	} while (++i < AUDIO_BLOCK_SAMPLES);
+	return AUDIO_BLOCK_SAMPLES * 3 * channels;
+}
+
 static const _tEncoderDecoder decoders[APW_NONE] = {
   decode_8bit, decode_8bit_signed, decode_8bit_ulaw,
-  decode_16bit, decode_16bit_bigendian
+  decode_16bit, decode_16bit_bigendian, decode_24bit
 };
 
 // Todo:
@@ -833,15 +854,16 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
     LOGV("Format: WAV");
     size_t position = sizeof(fileHeader);
     bool fmtok = false;
-    uint8_t bytes;
 
     do {
+
       wavfile.seek(position);
       rd = wavfile.read(&dataHeader, sizeof(dataHeader));
 
       if (rd < sizeof(dataHeader)) return false;
 
       if (dataHeader.chunkID == cFMT) {
+				uint8_t bytes;
         tFmtHeaderEx fmtHeader;
         memset((void*)&fmtHeader, 0, sizeof(tFmtHeaderEx));
         //Serial.println(dataHeader.chunkSize);
@@ -861,13 +883,16 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
           //Serial.printf("channel mask: 0x%x\n", channelmask);
         }
 
-        //Serial.printf("Format:%d Bits:%d\n", fmtHeader.wFormatTag, fmtHeader.wBitsPerSample);
+        LOGV("Format:%d Bits:%d\n", fmtHeader.wFormatTag, fmtHeader.wBitsPerSample);
         if (fmtHeader.dwSamplesPerSec == 0) return false;
         sample_rate = fmtHeader.dwSamplesPerSec;
         channels = fmtHeader.wChannels;
-        if (bytes == 1) dataFmt = APW_8BIT_UNSIGNED;
-        else if (bytes == 2) dataFmt = APW_16BIT_SIGNED;
-        else return false;
+				switch (bytes) {
+					case 1: dataFmt = APW_8BIT_UNSIGNED; break;
+					case 2: dataFmt = APW_16BIT_SIGNED; break;
+					case 3: dataFmt = APW_24BIT_SIGNED; break;
+				  default: return false;
+				}
         if (fmtHeader.wFormatTag != 1 &&
             fmtHeader.wFormatTag != 7 && //ulaw
             fmtHeader.wFormatTag != 65534) return false;
@@ -1320,7 +1345,7 @@ bool AudioRecordWav::start( APW_FORMAT fmt, unsigned int numchannels, bool pause
   last_err = ERR_OK;
   //LOGV("Record:");...
 
-  sz_mem = buffer_wr = 0;
+  sz_mem = 0;
   data_length = data_length_old = 0;
 
   dataFmt = fmt;
@@ -1362,8 +1387,6 @@ bool AudioRecordWav::start( APW_FORMAT fmt, unsigned int numchannels, bool pause
   if (buffer_wr >= sz_mem) buffer_wr = 0;
   buffer_wr_start = buffer_wr;
   LOGV("Inst:%d ustep:%d = %d LEN: 0x%x\n", my_instance, updateStep, x, sz_mem - buffer_wr);
-  //buffer_wr = my_instance * sz_frame;
-  //buffer_wr = 0;
 
   state = paused ? STATE_PAUSED : STATE_RUNNING;
   startInt(irq);
