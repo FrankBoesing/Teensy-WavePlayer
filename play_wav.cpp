@@ -67,7 +67,7 @@
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
-#if defined (DEBUG_PIN_PLAYWAV)
+#if defined(DEBUG_PIN_PLAYWAV)
 #define DBGPIN_HIGH	{digitalWriteFast(DEBUG_PIN_PLAYWAV, HIGH);}
 #define DBGPIN_LOW	{digitalWriteFast(DEBUG_PIN_PLAYWAV, LOW);}
 #else
@@ -77,10 +77,11 @@
 
 enum APW_STATE : char {STATE_STOP, STATE_PAUSED, STATE_RUNNING};
 
-static const float audioBlockMs = 1000 * AUDIO_BLOCK_SAMPLES / AUDIO_SAMPLE_RATE_EXACT; // block time ms (default: 2.9)
+static const float audioBlockMs = 1000 * AUDIO_BLOCK_SAMPLES / (float)(AUDIO_SAMPLE_RATE_EXACT); // block time ms (default: 2.9)
 static const float msPerSample = 1000.0f / AUDIO_SAMPLE_RATE_EXACT;
 static const audio_block_t zeroblock = {0}; // required to deal gracefully with NULL block
-static const uint8_t bytesPerSample[APW_NONE] = {1, 1, 1, 2, 2, 3};
+static const int numDecoders = (int)APW_NONE;
+static const uint8_t bytesPerSample[numDecoders] = {1, 1, 1, 2, 2, 3};
 
 
 //----------------------------------------------------------------------------------------------------
@@ -574,7 +575,7 @@ size_t decode_24bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], c
 	return AUDIO_BLOCK_SAMPLES * 3 * channels;
 }
 
-static const _tEncoderDecoder decoders[APW_NONE] = {
+static const _tEncoderDecoder decoders[numDecoders] = {
   decode_8bit, decode_8bit_signed, decode_8bit_ulaw,
   decode_16bit, decode_16bit_bigendian, decode_24bit
 };
@@ -956,6 +957,7 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   //calculate the needed buffer memory:
   sz_mem = _instances * sz_frame;
   sz_mem *= _sz_mem_additional;
+	while (sz_mem < 1024) sz_mem *=2;
   if (!createBuffer()) return false;
 
   // pre-load according to instance number
@@ -1181,7 +1183,7 @@ size_t encode_16bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], c
 
 }
 
-static const _tEncoderDecoder encoders[APW_NONE] = {
+static const _tEncoderDecoder encoders[numDecoders] = {
   encode_8bit, encode_8bit, encode_8bit,
   encode_16bit, encode_16bit, encode_16bit
 };
@@ -1378,7 +1380,7 @@ bool AudioRecordWav::start( APW_FORMAT fmt, unsigned int numchannels, bool pause
   encoder = encoders[dataFmt];
   channels = numchannels;
 
-#if !defined(__IMXRT1062__)
+#if defined(KINETISK)
   sample_rate = ((int)(AUDIO_SAMPLE_RATE_EXACT) / 20) * 20; //round (for Teensy 3.x)
 #else
   sample_rate = AUDIO_SAMPLE_RATE_EXACT;
@@ -1403,6 +1405,7 @@ bool AudioRecordWav::start( APW_FORMAT fmt, unsigned int numchannels, bool pause
   //calculate the needed buffer memory:
   sz_mem = _instances * sz_frame;
   sz_mem *= _sz_mem_additional;
+	while (sz_mem < 1024) sz_mem *=2;
   if (!createBuffer()) return false;
 
   bool irq = stopInt();
@@ -1411,11 +1414,11 @@ bool AudioRecordWav::start( APW_FORMAT fmt, unsigned int numchannels, bool pause
   buffer_wr = sz_mem - x * AUDIO_BLOCK_SAMPLES * channels * bytes;
   if (buffer_wr >= sz_mem) buffer_wr = 0;
   buffer_wr_start = buffer_wr;
-  LOGV("Inst:%d ustep:%d = %d LEN: 0x%x\n", my_instance, updateStep, x, sz_mem - buffer_wr);
 
   state = paused ? STATE_PAUSED : STATE_RUNNING;
   startInt(irq);
 
+	LOGV("Inst:%d ustep:%d = %d LEN: 0x%x\n", my_instance, updateStep, x, sz_mem - buffer_wr);
   return true;
 }
 
