@@ -1440,11 +1440,14 @@ void  AudioRecordWav::update(void)
 
   unsigned int chan;
   chan = 0;
+	audio_block_t *qcopy[channels];
   do
   {
     queue[chan] = AudioStream::receiveReadOnly(chan);
-    if (!queue[chan]) queue[chan] = (audio_block_t*)&zeroblock; // ... data of all zeros
+    if (!queue[chan]) qcopy[chan] = (audio_block_t*)&zeroblock; // ... data of all zeros
+		else qcopy[chan] = queue[chan];
   } while (++chan < channels);
+
 
   if (buffer_wr >= sz_mem) buffer_wr = 0;
   if (updateStep == my_instance && buffer_wr == 0)
@@ -1453,14 +1456,13 @@ void  AudioRecordWav::update(void)
     buffer_wr_start = 0;
   }
 
-  buffer_wr += encoder(buffer, buffer_wr, queue, channels);
+  buffer_wr += encoder(buffer, buffer_wr, qcopy, channels);
 
   // release queues
   chan = 0;
   do
   {
-    if (likely(queue[chan] != nullptr
-        && queue[chan] != (audio_block_t*)&zeroblock)) // don't release our block of zeroes!
+    if (likely(queue[chan] != nullptr))
     {
       AudioStream::release(queue[chan]);
       queue[chan] = nullptr; // < why is this needed?

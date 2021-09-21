@@ -163,16 +163,16 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     uint32_t positionMillis(void);
     uint32_t lengthMillis(void);
     uint32_t channelMask(void) {return channelmask;}
-
-  private:
-    virtual void update(void);
+  protected:
     bool _play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused );
     bool readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState );
     audio_block_t *queue[_AudioPlayWav_MaxChannels];
     _tEncoderDecoder decoder;
     size_t total_length;      			// number of audio data bytes in file
-    size_t buffer_rd;
     uint32_t channelmask;           // dwChannelMask
+  private:
+    virtual void update(void);
+		size_t buffer_rd;
 };
 /*********************************************************************************************************/
 #if 1
