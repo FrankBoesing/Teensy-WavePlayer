@@ -46,19 +46,18 @@ enum APW_FORMAT { APW_8BIT_UNSIGNED = 0, APW_8BIT_SIGNED, APW_ULAW,
 									APW_24BIT_SIGNED, APW_NONE
                 };
 
-enum APW_ERR	{ ERR_OK = 0,              // no Error
+enum APW_ERR	{ ERR_OK = 0,             // no Error
                ERR_FORMAT = 1,          // not supported Format
                ERR_FILE = 2,            // File not usable (does it exist?)
                ERR_OUT_OF_MEMORY = 3,   // Not enough dynamic memory available
-               ERR_NO_AUDIOBLOCKS = 4
-							}; // insufficient # of available audio blocks
+               ERR_NO_AUDIOBLOCKS = 4		// insufficient # of available audio blocks
+							};
 
 #define APW_PREALLOCATE (60 * 60) // Recording: How much to preallocate (in Seconds)
 
 
 /*********************************************************************************************************/
 
-#define xDEBUG_PRINT_PLAYWAV
 //#define DEBUG_PIN_PLAYWAV 0 //enable to view the timing on a scope
 
 /*********************************************************************************************************/

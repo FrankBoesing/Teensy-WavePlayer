@@ -67,6 +67,14 @@
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
+#if defined (DEBUG_PIN_PLAYWAV)
+#define DBGPIN_HIGH	{digitalWriteFast(DEBUG_PIN_PLAYWAV, HIGH);}
+#define DBGPIN_LOW	{digitalWriteFast(DEBUG_PIN_PLAYWAV, LOW);}
+#else
+#define DBGPIN_HIGH	{}
+#define DBGPIN_LOW	{}
+#endif
+
 enum APW_STATE : char {STATE_STOP, STATE_PAUSED, STATE_RUNNING};
 
 static const float audioBlockMs = 1000 * AUDIO_BLOCK_SAMPLES / AUDIO_SAMPLE_RATE_EXACT; // block time ms (default: 2.9)
@@ -241,8 +249,12 @@ INLINE size_t apwFile::read(void *buf, size_t nbyte)
 
 INLINE size_t apwFile::readInISR(void *buf, size_t nbyte)
 {
-  if (likely(fileType == APW_FILE_SD)) return sdFile.read(buf, nbyte);
-  return file.read(buf, nbyte);
+	size_t r;
+	DBGPIN_HIGH;
+  if (likely(fileType == APW_FILE_SD)) r = sdFile.read(buf, nbyte);
+  else r =  file.read(buf, nbyte);
+	DBGPIN_LOW;
+	return r;
 }
 
 
@@ -256,8 +268,12 @@ INLINE size_t apwFile::write(void *buf, size_t nbyte)
 
 INLINE size_t apwFile::writeInISR(void *buf, size_t nbyte)
 {
-  if (likely(fileType == APW_FILE_SD)) return sdFile.write(buf, nbyte);
-  return file.write(buf, nbyte);
+	size_t r;
+	DBGPIN_HIGH;
+  if (likely(fileType == APW_FILE_SD)) r= sdFile.write(buf, nbyte);
+	else r= file.write(buf, nbyte);
+	DBGPIN_LOW;
+	return r;
 }
 //----------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------
