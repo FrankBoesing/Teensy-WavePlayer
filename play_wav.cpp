@@ -33,8 +33,10 @@
 
 #include "play_wav.h"
 
-
 #if !defined(KINETISL)
+
+#define MIN_BUFFER_SIZE 1024 //min bytes to read from file
+
 
 #if defined(LOG_LEVEL)
 //https://github.com/FrankBoesing/TeensyLogger
@@ -164,6 +166,11 @@ void apwFile::close(void)
 apwFile::operator bool()
 {
   return sdFile || file;
+}
+
+bool apwFile::isSD(void)
+{
+	return APW_FILE_SD == fileType;
 }
 
 bool apwFile::seek(size_t pos)
@@ -957,7 +964,8 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   //calculate the needed buffer memory:
   sz_mem = _instances * sz_frame;
   sz_mem *= _sz_mem_additional;
-	while (sz_mem < 1024) sz_mem *=2;
+	if (wavfile.isSD())
+		while (sz_mem < MIN_BUFFER_SIZE) sz_mem *=2;
   if (!createBuffer()) return false;
 
   // pre-load according to instance number
@@ -1405,7 +1413,8 @@ bool AudioRecordWav::start( APW_FORMAT fmt, unsigned int numchannels, bool pause
   //calculate the needed buffer memory:
   sz_mem = _instances * sz_frame;
   sz_mem *= _sz_mem_additional;
-	while (sz_mem < 1024) sz_mem *=2;
+	if (wavfile.isSD())
+		while (sz_mem < MIN_BUFFER_SIZE) sz_mem *=2;
   if (!createBuffer()) return false;
 
   bool irq = stopInt();

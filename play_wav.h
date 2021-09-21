@@ -83,6 +83,7 @@ class apwFile
     bool truncate(void);
     operator bool();
     void reset();
+		bool isSD();
   private:
     File file;
     FsFile sdFile;
