@@ -2,12 +2,9 @@
 #include <Audio.h>
 #include <play_wav.h>
 
-
 // this is intended to record an incoming I2S stream and simultaneously make it hearable in the I2S output
 // tested with a T4 and PCM1808a
-// however, longer recordings seem problematic
-// the incoming music suddenly stops in the recording, although it is still sent by I2S to the I2S output . . . 
-// this can happen after 12 sec or 29 seconds, or after 63 sec or . . . 
+ 
 
 // GUItool: begin automatically generated code
 AudioPlayWav             play;       //xy=288,291
@@ -32,6 +29,12 @@ AudioConnection          patchCord6(ADC1, 1, record, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=466,205
 
 
+
+#if AUDIO_BLOCK_SAMPLES < 256
+#error Please set AUDIO_BLOCK_SAMPLES >= 256  (in AudioStream.h)
+#endif
+
+
 const char filename[] = "RecADC3.wav";
 
 File file;
@@ -44,9 +47,6 @@ void playFile(const char *filename)
   play.play(filename);
   while (play.isPlaying()) 
   {
-    // Needed for EventResponder: could instead call yield(), 
-    // or switch to old scheme of reading SD inside the update() loop
-    // by executing playWav.enableEventReading(false)
     delay(10); 
   }
 }
@@ -82,9 +82,7 @@ void setup(void)
   file = SD.open(filename, FILE_WRITE_BEGIN);
 
   Serial.println("Recording (what you hear is what is being recorded):");
-  AudioNoInterrupts();
   record.record(file, APW_16BIT_SIGNED, 2);
-  AudioInterrupts();
 
   // record
   for(unsigned idx=0;idx<=RECORD_LENGTH;idx++)
