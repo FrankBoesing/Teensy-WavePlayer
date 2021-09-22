@@ -93,14 +93,14 @@ static const uint8_t bytesPerSample[numDecoders] = {1, 1, 1, 2, 2, 3};
 INLINE static uint32_t __ldrexw(volatile uint32_t *addr)
 {
   uint32_t result;
-  asm volatile ("ldrex %0, [%1]" : "=r" (result) : "r" (addr) );
+  asm volatile ("ldrex %0, [%1]" : "=r" (result) : "r" (addr) : "memory");
   return (result);
 }
 
 INLINE static uint32_t __strexw(uint32_t value, volatile uint32_t *addr)
 {
   uint32_t result;
-  asm volatile ("strex %0, %2, [%1]" : "=&r" (result) : "r" (addr), "r" (value) );
+  asm volatile ("strex %0, %2, [%1]" : "=&r" (result) : "r" (addr), "r" (value) : "memory" );
   return (result);
 }
 
@@ -115,6 +115,7 @@ INLINE bool stopInt()
   if ( likely(NVIC_IS_ENABLED(IRQ_SOFTWARE)) )
   {
     NVIC_DISABLE_IRQ(IRQ_SOFTWARE);
+		asm("":::"memory");
     return true;
   }
   return false;
@@ -123,12 +124,14 @@ INLINE bool stopInt()
 
 INLINE void startInt(bool enabled)
 {
+	asm("":::"memory");
 #if 0
   if (likely(enabled)) __enable_irq();
 #else
   if (likely(enabled))
     NVIC_ENABLE_IRQ(IRQ_SOFTWARE);
 #endif
+
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -1084,7 +1087,7 @@ uint32_t AudioPlayWav::positionMillis(void)
     bytes = this->bytes;
     channels = this->channels;
     data_length = this->data_length;
-  } while ( unlikely(__strexw(1, &safe_read)) );
+  } while ( __strexw(1, &safe_read) );
 
   if (data_length < 0) data_length = 0;
 
