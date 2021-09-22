@@ -108,7 +108,7 @@ INLINE bool stopInt()
 {
 #if 0
   uint32_t primask;
-  asm volatile("mrs %0, primask\n" : "=r" (primask)::);
+  asm volatile("mrs %0, primask\n" : "=r" (primask)::"memory");
   __disable_irq();
   return (primask == 0) ? true : false;
 #else
@@ -388,7 +388,9 @@ void AudioBaseWav::freeBuffer(void)
 
 //----------------------------------------------------------------------------------------------------
 #pragma GCC push_options
-#pragma GCC optimize ("unroll-loops")
+//#pragma GCC optimize ("unroll-loops")
+
+
 
 // 8 bit unsigned:
 __attribute__((hot)) static
@@ -401,7 +403,7 @@ size_t decode_8bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], co
     case 1:
       //todo: 32 bit reads
       do {
-        queue[0]->data[i  ] = ( p[i  ] - 128 ) << 8; //8 bit fmt is unsigned
+        queue[0]->data[i    ] = ( p[i    ] - 128 ) << 8; //8 bit fmt is unsigned
         queue[0]->data[i + 1] = ( p[i + 1] - 128 ) << 8;
         i += 2;
       } while (i < AUDIO_BLOCK_SAMPLES);
@@ -572,13 +574,13 @@ size_t decode_24bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], c
   //TODO: Optimize
 	size_t i = 0;
 	uint8_t *p = (uint8_t*) &buffer[buffer_rd];
+	p++;
 	do {
 		unsigned int chan = 0;
 		uint16_t sample;
 		do {
-			p++;
 			sample = *(uint16_t*)p; //note, this involves unaligned reads.
-			p+=2;
+			p+=3;
 			queue[chan]->data[i] = sample;
 		} while (++chan < channels);
 	} while (++i < AUDIO_BLOCK_SAMPLES);
