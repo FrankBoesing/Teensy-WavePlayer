@@ -85,9 +85,14 @@ Some hints first:
 
 ## Main functions
 #### record(File | filename, format, numChannels, [,paused])
-Plays the `File` object or named file; setting the optional `paused` parameter to `true` allocates and pre-loads the buffer and pre-allocates the file, but does not start recording. Buffer memory is allocated when this function is called, with the amount dependent on the number of audio channels provided in the file.
+Plays the `File` object or named file; setting the optional `paused` parameter to `true` allocates and pre-loads the buffer and pre-allocates the file, but does not start recording. Buffer memory is allocated when this function is called, with the amount dependent on the number of audio channels.
 NumChannels is the number of recorded channels (i.e. 1 for mono, 2 for stereo etc).
-Currently, two formats are supported: APW_8BIT_SIGNED and APW_16BIT_SIGNED
+Currently, two formats are supported: `APW_8BIT_UNSIGNED` and `APW_16BIT_SIGNED`
+
+Examples: 
+- `record('test.wav', APW_16BIT_SIGNED, 2)` starts recording a 16Bit stereo file to SD.
+- `record('test.wav', APW_8BIT_UNSIGNED, 1, paused)` prepares (preallocates file, write dummy wave-header, etc)  the recording of a 8Bit mono file. 
+
 #### pause(bool)
 Like above for playing. The wave-file header is written.
 #### stop()
