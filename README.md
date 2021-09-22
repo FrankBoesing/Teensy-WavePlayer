@@ -81,6 +81,7 @@ Some hints first:
   - Important, increase the AUDIO_BLOCK_SAMPLES to 256 or 512.
   - In some cases it might be better to record to littlFS in PSRAM, and to copy the recorded file to SD later.
   - I recommend not to record more than one file at a time. Better is to use one file with more channels, if required.
+  - Don't use SPI. Use a Teensy 4.1 and the inbuilt SD slot.
  
 
 ## Main functions
