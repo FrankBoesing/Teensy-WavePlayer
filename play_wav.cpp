@@ -1088,7 +1088,7 @@ uint32_t AudioPlayWav::positionMillis(void)
 
   if (data_length < 0) data_length = 0;
 
-  return round( msPerSample * (total_length - data_length * AUDIO_BLOCK_SAMPLES) / (bytes * channels) );
+  return round( msPerSample * ((total_length / (bytes * channels)) - data_length * AUDIO_BLOCK_SAMPLES ));
 }
 
 uint32_t AudioPlayWav::lengthMillis(void)
