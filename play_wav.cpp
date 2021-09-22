@@ -76,6 +76,7 @@
 #define DBGPIN_HIGH	{}
 #define DBGPIN_LOW	{}
 #endif
+//#define STOP_ALL_ISRS
 
 enum APW_STATE : char {STATE_STOP, STATE_PAUSED, STATE_RUNNING};
 
@@ -106,7 +107,7 @@ INLINE static uint32_t __strexw(uint32_t value, volatile uint32_t *addr)
 
 INLINE bool stopInt()
 {
-#if 0
+#if defined(STOP_ALL_ISRS)
   uint32_t primask;
   asm volatile("mrs %0, primask\n" : "=r" (primask)::"memory");
   __disable_irq();
@@ -125,7 +126,7 @@ INLINE bool stopInt()
 INLINE void startInt(bool enabled)
 {
 	asm("":::"memory");
-#if 0
+#if defined(STOP_ALL_ISRS)
   if (likely(enabled)) __enable_irq();
 #else
   if (likely(enabled))
@@ -262,12 +263,13 @@ INLINE size_t apwFile::readInISR(void *buf, size_t nbyte)
 {
 	size_t r;
 	DBGPIN_HIGH;
-  if (likely(fileType == APW_FILE_SD)) r = sdFile.read(buf, nbyte);
-  else r =  file.read(buf, nbyte);
+  if (likely(fileType == APW_FILE_SD))
+		r = sdFile.read(buf, nbyte);
+  else
+		r =  file.read(buf, nbyte);
 	DBGPIN_LOW;
 	return r;
 }
-
 
 INLINE size_t apwFile::write(void *buf, size_t nbyte)
 {
@@ -281,11 +283,14 @@ INLINE size_t apwFile::writeInISR(void *buf, size_t nbyte)
 {
 	size_t r;
 	DBGPIN_HIGH;
-  if (likely(fileType == APW_FILE_SD)) r= sdFile.write(buf, nbyte);
-	else r= file.write(buf, nbyte);
+  if (likely(fileType == APW_FILE_SD))
+		r = sdFile.write(buf, nbyte);
+	else
+		r = file.write(buf, nbyte);
 	DBGPIN_LOW;
 	return r;
 }
+
 //----------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------
@@ -387,16 +392,13 @@ void AudioBaseWav::freeBuffer(void)
 
 
 //----------------------------------------------------------------------------------------------------
-#pragma GCC push_options
-//#pragma GCC optimize ("unroll-loops")
-
-
-
+//----------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------
 // 8 bit unsigned:
 __attribute__((hot)) static
-size_t decode_8bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t decode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
 {
-  int8_t *p = &buffer[buffer_rd];
+  int8_t *p = buffer;
 
   size_t i = 0;
   switch (channels) {
@@ -431,9 +433,9 @@ size_t decode_8bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], co
 
 // 8 bit signed:
 __attribute__((hot)) static
-size_t decode_8bit_signed(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t decode_8bit_signed(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
 {
-  int8_t *p = &buffer[buffer_rd];
+  int8_t *p = buffer;
 
   size_t i = 0;
   do {
@@ -484,9 +486,9 @@ const static short ulaw_decode[256] = {
 
 // 8 bit ulaw:
 __attribute__((hot)) static
-size_t decode_8bit_ulaw(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t decode_8bit_ulaw(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
 {
-  uint8_t *p = (uint8_t*)&buffer[buffer_rd];
+  uint8_t *p = (uint8_t*)buffer;
 
   size_t i = 0;
   switch (channels) {
@@ -517,17 +519,17 @@ size_t decode_8bit_ulaw(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[
 
 // 16 bit:
 __attribute__((hot)) static
-size_t decode_16bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t decode_16bit(int8_t buffer[],  audio_block_t *queue[], const unsigned int channels)
 {
   switch (channels)
   {
     case 1:
-      memcpy(&queue[0]->data[0], &buffer[buffer_rd], AUDIO_BLOCK_SAMPLES * 2); //benchmak this
+      memcpy(&queue[0]->data[0], buffer, AUDIO_BLOCK_SAMPLES * 2); //benchmak this
       return AUDIO_BLOCK_SAMPLES * 2 * 1;
     case 2: {
         uint32_t sample;
         size_t i = 0;
-        int32_t *p32 = (int32_t*) &buffer[buffer_rd];
+        int32_t *p32 = (int32_t*) buffer;
         do {
           sample = *p32++;
           queue[0]->data[i] = (uint16_t)sample;
@@ -537,7 +539,7 @@ size_t decode_16bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], c
       }
     default: {
         size_t i = 0;
-        int16_t *p = (int16_t*) &buffer[buffer_rd];
+        int16_t *p = (int16_t*) buffer;
         do {
           unsigned int chan = 0;
           do {
@@ -552,10 +554,10 @@ size_t decode_16bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], c
 // 16 bit big endian:
 
 __attribute__((hot)) static
-size_t decode_16bit_bigendian(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t decode_16bit_bigendian(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
 {
 
-  int16_t *p = (int16_t*) &buffer[buffer_rd];
+  int16_t *p = (int16_t*) buffer;
   size_t i = 0;
   do {
     unsigned int chan = 0;
@@ -569,11 +571,11 @@ size_t decode_16bit_bigendian(int8_t buffer[], size_t buffer_rd, audio_block_t *
 
 // 24 bit:
 __attribute__((hot)) static
-size_t decode_24bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t decode_24bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
 {
   //TODO: Optimize
 	size_t i = 0;
-	uint8_t *p = (uint8_t*) &buffer[buffer_rd];
+	uint8_t *p = (uint8_t*) buffer;
 	p++;
 	do {
 		unsigned int chan = 0;
@@ -598,7 +600,7 @@ static const _tEncoderDecoder decoders[numDecoders] = {
 //- ...but may be useful for sample rate conversion or playback speed variation
 //- play float formats?
 
-#pragma GCC pop_options
+
 //----------------------------------------------------------------------------------------------------
 
 bool AudioPlayWav::play(File file, const bool paused)
@@ -772,7 +774,6 @@ typedef struct {
   uint8_t sampleRate[10]; //80  bit  IEEE  Standard  754  floating  point... ignore that!
   unsigned long compressionType;
 } PACKED taifcCommonChunk;
-
 
 bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState)
 {
@@ -1050,7 +1051,7 @@ void  AudioPlayWav::update(void)
   }
 
   // copy the samples to the audio blocks:
-  buffer_rd += decoder(buffer, buffer_rd, queue, channels);
+  buffer_rd += decoder(&buffer[buffer_rd], queue, channels);
 
   // transmit them:
   chan = 0;
@@ -1080,8 +1081,6 @@ uint32_t AudioPlayWav::positionMillis(void)
   int data_length;
   uint8_t bytes, channels;
 
-  if ( state == STATE_STOP ) return 0;
-
   do
   {
     __ldrexw(&safe_read);
@@ -1098,7 +1097,6 @@ uint32_t AudioPlayWav::positionMillis(void)
 
 uint32_t AudioPlayWav::lengthMillis(void)
 {
-  if ( state == STATE_STOP ) return 0;
   return round( msPerSample * total_length / (bytes * channels) );
 }
 
@@ -1121,16 +1119,16 @@ typedef struct {
   uint32_t dwSampleLength;
 } PACKED tfactChunk;
 
-
+//----------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------
 #pragma GCC push_options
 #pragma GCC optimize ("unroll-loops")
 
 // 8 bit unsigned:
 __attribute__((hot)) static
-size_t encode_8bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t encode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
 {
-  int8_t *p = &buffer[buffer_rd];
+  int8_t *p = buffer;
   size_t i = 0;
 
   switch (channels)
@@ -1162,17 +1160,17 @@ size_t encode_8bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], co
 }
 // 16 bit:
 __attribute__((hot)) static
-size_t encode_16bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], const unsigned int channels)
+size_t encode_16bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
 {
   size_t i = 0;
   switch (channels)
   {
     case 1:
-      memcpy(&buffer[buffer_rd], &queue[0]->data[0], AUDIO_BLOCK_SAMPLES * 2);
+      memcpy(buffer, &queue[0]->data[0], AUDIO_BLOCK_SAMPLES * 2);
       return AUDIO_BLOCK_SAMPLES * 2 * 1;
     case 2:
       {
-        uint32_t *p = (uint32_t*) &buffer[buffer_rd];
+        uint32_t *p = (uint32_t*) buffer;
         uint32_t sample;
         do {
           sample = (int32_t)queue[0]->data[i] << 16;
@@ -1183,7 +1181,7 @@ size_t encode_16bit(int8_t buffer[], size_t buffer_rd, audio_block_t *queue[], c
       }
     default:
       {
-        int16_t *p = (int16_t*) &buffer[buffer_rd];
+        int16_t *p = (int16_t*) buffer;
         do {
           unsigned int chan = 0;
           do {
@@ -1461,7 +1459,7 @@ void  AudioRecordWav::update(void)
     buffer_wr_start = 0;
   }
 
-  buffer_wr += encoder(buffer, buffer_wr, qcopy, channels);
+  buffer_wr += encoder(buffer, qcopy, channels);
 
   // release queues
   chan = 0;

@@ -144,7 +144,7 @@ class AudioBaseWav
 
 /*********************************************************************************************************/
 
-typedef size_t (*_tEncoderDecoder)(int8_t [], size_t, audio_block_t *[], unsigned int);
+typedef size_t (*_tEncoderDecoder)(int8_t [], audio_block_t *[], unsigned int);
 
 class AudioPlayWav : public AudioBaseWav, public AudioStream
 {
