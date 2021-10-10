@@ -78,6 +78,7 @@ Some hints first:
 - You can record to any file that is supported by Teensyduino - i.e. littlFS etc.
 - IF you want to record to SD, keep this in mind:
   - The SD Card needs time to update the FAT and to do internal operations like wear levelling. When this will happen is unpredictable. Use a good, fast card. Unfortunately, when you buy a card, no label or logo on the card tells you if it is good for microcontrollers. Id had success with a Kingston GO! Plus 64GB.
+Here is a test of various cards: https://forum.pjrc.com/threads/68418-Which-SD-is-Best-for-Audio-Projects?p=290795&viewfull=1#post290795
   - Important, increase the AUDIO_BLOCK_SAMPLES to 256 or 512.
   - In some cases it might be better to record to littlFS in PSRAM, and to copy the recorded file to SD later.
   - I recommend not to record more than one file at a time. Better is to use one file with more channels, if required.
