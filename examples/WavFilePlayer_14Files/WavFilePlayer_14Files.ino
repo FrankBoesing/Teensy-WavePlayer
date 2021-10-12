@@ -126,7 +126,7 @@ void setup() {
     }
   }
 
-  //1. set up mixers
+  // set up mixers
   float gain = 1.0 / numFiles;
   for (int i = 0; i < 4; i++) {
     mixer1.gain(i, gain);
@@ -145,36 +145,7 @@ void setup() {
     mixer10.gain(i, gain);
   }
 
-  //2. init files
-
-
-  // playWav.addMemoryForRead(3);
-
 }
-
-void playFile(const char *filename)
-{
-  Serial.printf("%d. Playing file: %s\n", cnt, filename);
-  cnt++;
-  int r = playWav1.play(filename);
-  //int r = playWav.playRaw(filename, APW_8BIT_UNSIGNED, 44100, 1);
-  if (!r) {
-    Serial.printf("Error: %d\n", playWav1.lastErr());
-  }
-  else {
-    uint32_t t = 0;
-    while (playWav1.isPlaying()) {
-      uint32_t p = playWav1.positionMillis();
-      if (p - t > 1000) {
-        Serial.print(".");
-        t = p;
-      }
-      delay(1000);
-    }
-    Serial.println();
-  }
-}
-
 
 void loop() {
 
@@ -187,16 +158,16 @@ void loop() {
 
   int playing;
   do {
-    
+
     playing = 0;
     for (int i = 0; i < numFiles; i++)
     {
       if (player[i]->isPlaying())
         playing++;
     }
-        
+
   } while (playing > 0);
-  
+
   Serial.println("All stopped.");
-   
+
 }
