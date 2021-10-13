@@ -1,29 +1,9 @@
 // Simple WAV file player example
 //
-// Three types of output may be used, by configuring the code below.
-//
-//   1: Digital I2S - Normally used with the audio shield:
-//         http://www.pjrc.com/store/teensy3_audio.html
-//
-//   2: Digital S/PDIF - Connect pin 22 to a S/PDIF transmitter
-//         https://www.oshpark.com/shared_projects/KcDBKHta
-//
-//   3: Analog DAC - Connect the DAC pin to an amplified speaker
-//         http://www.pjrc.com/teensy/gui/?info=AudioOutputAnalog
-//
-// To configure the output type, first uncomment one of the three
-// output objects.  If not using the audio shield, comment out
-// the sgtl5000_1 lines in setup(), so it does not wait forever
-// trying to configure the SGTL5000 codec chip.
-//
-// The SD card may connect to different pins, depending on the
-// hardware you are using.  Uncomment or configure the SD card
-// pins to match your hardware.
-//
-// Data files to put on your SD card can be downloaded here:
-//   http://www.pjrc.com/teensy/td_libs_AudioDataFiles.html
 //
 // This example code is in the public domain.
+
+
 #include <LittleFS.h>
 LittleFS_QSPIFlash myfs;
 uint64_t fTot, totSize1;
