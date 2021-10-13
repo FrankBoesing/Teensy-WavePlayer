@@ -100,7 +100,6 @@ Like above for playing. The wave-file header is written.
 #### stop()
 Like above for playing. The wave-file header is written.
 #### isRecording().
-The wave-file header is written.
 Return true (non-zero) if recording, or false (zero) when stopped or paused.  
 #### isStopped()
 like above for playing
