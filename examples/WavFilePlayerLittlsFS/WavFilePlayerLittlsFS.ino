@@ -34,7 +34,7 @@ uint64_t fTot, totSize1;
 #include <SD.h>
 
 // GUItool: begin automatically generated code
-AudioPlaySdWav           playSdWav1;     //xy=323,171
+AudioPlayWav             playSdWav1;     //xy=323,171
 AudioMixer4              mixer1;         //xy=647,123
 AudioMixer4              mixer3;         //xy=648,212
 //AudioOutputPT8211        pt8211_1;       //xy=828,169
