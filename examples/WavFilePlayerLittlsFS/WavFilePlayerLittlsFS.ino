@@ -5,7 +5,11 @@
 
 
 #include <LittleFS.h>
-LittleFS_QSPIFlash myfs;
+#include <play_wav.h>
+
+//LittleFS_QSPIFlash myfs;
+LittleFS_QPINAND myfs;
+
 uint64_t fTot, totSize1;
 
 #include <Audio.h>
@@ -17,8 +21,8 @@ uint64_t fTot, totSize1;
 AudioPlayWav             playSdWav1;     //xy=323,171
 AudioMixer4              mixer1;         //xy=647,123
 AudioMixer4              mixer3;         //xy=648,212
-//AudioOutputPT8211        pt8211_1;       //xy=828,169
-AudioOutputI2S           audioOutput;
+AudioOutputPT8211        audioOutput;       //xy=828,169
+//AudioOutputI2S           audioOutput;
 AudioConnection          patchCord1(playSdWav1, 0, mixer1, 0);
 AudioConnection          patchCord2(playSdWav1, 1, mixer3, 0);
 AudioConnection          patchCord3(playSdWav1, 2, mixer1, 1);
@@ -43,19 +47,12 @@ extern uint32_t _AudioPlaySdWavInstances;
 
 void setup() {
   Serial.begin(9600);
-  if (CrashReport) {
-    Serial.println(CrashReport);
-    CrashReport.clear();
-  }
-  Serial.printf("Instances: %d\n", (int)_AudioPlaySdWavInstances);
-  Serial.println(_AudioPlaySdWavInstances);
-
-  AudioMemory(50);
+  AudioMemory(20);
   // Comment these out if not using the audio adaptor board.
   // This may wait forever if the SDA & SCL pins lack
   // pullup resistors
-  sgtl5000_1.enable();
-  sgtl5000_1.volume(0.5);
+  //sgtl5000_1.enable();
+  //sgtl5000_1.volume(0.5);
 
   Serial.println("LittleFS Test"); delay(5);
   if (!myfs.begin()) {
