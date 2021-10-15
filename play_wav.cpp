@@ -19,11 +19,11 @@
 #define LOGPRINTLEVEL
 #include <TeensyLogger.h>
 #else
-#define LOGE(...) {}
-#define LOGD(...) {}
-#define LOGW(...) {}
-#define LOGI(...) {}
-#define LOGV(...) {}
+#define LOGE(...) do {} while(0)
+#define LOGD(...) do {} while(0)
+#define LOGW(...) do {} while(0)
+#define LOGI(...) do {} while(0)
+#define LOGV(...) do {} while(0)
 #endif
 
 #ifdef PACKED
@@ -45,11 +45,11 @@
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
 #if defined(DEBUG_PIN_PLAYWAV)
-#define DBGPIN_HIGH	{digitalWriteFast(DEBUG_PIN_PLAYWAV, HIGH);}
-#define DBGPIN_LOW	{digitalWriteFast(DEBUG_PIN_PLAYWAV, LOW);}
+#define DBGPIN_HIGH	do {digitalWriteFast(DEBUG_PIN_PLAYWAV, HIGH);} while(0)
+#define DBGPIN_LOW	do {digitalWriteFast(DEBUG_PIN_PLAYWAV, LOW);} while(0)
 #else
-#define DBGPIN_HIGH	{}
-#define DBGPIN_LOW	{}
+#define DBGPIN_HIGH	do {} while(0)
+#define DBGPIN_LOW	do {} while(0)
 #endif
 //#define STOP_ALL_ISRS
 
