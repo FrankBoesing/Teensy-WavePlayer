@@ -136,6 +136,7 @@ void apwFile::open(const char *filename, int mode)
 
 void apwFile::close(void)
 {
+	LOGD("File closed");
   bool irq = stopInt();
   if (sdFile) sdFile.close();
   if (file) file.close();
@@ -238,10 +239,14 @@ INLINE size_t apwFile::readInISR(void *buf, size_t nbyte)
 {
 	size_t r;
 	DBGPIN_HIGH;
+
   if (likely(fileType == APW_FILE_SD))
 		r = sdFile.read(buf, nbyte);
   else
-		r =  file.read(buf, nbyte);
+		r = file.read(buf, nbyte);
+
+	if (r < nbyte) LOGV("Read req. %d, got: %d", nbyte, r);
+
 	DBGPIN_LOW;
 	return r;
 }
@@ -306,13 +311,16 @@ void AudioBaseWav::reset(void)
 inline bool AudioBaseWav::isPaused(void) {
   return (state == STATE_PAUSED);
 }
+
 inline bool AudioBaseWav::isStopped(void) {
   return (state == STATE_STOP);
 }
 
 bool AudioBaseWav::isRunning(void)
 {
-  return state == STATE_RUNNING;
+  bool running = state == STATE_RUNNING;
+	//LOGV("isRunning()? -> %d", running);
+  return running;
 }
 
 void AudioBaseWav::pause(const bool pause)
@@ -612,8 +620,10 @@ bool AudioPlayWav::playRaw(const char *filename, APW_FORMAT fmt, uint32_t sample
 
 bool AudioPlayWav::_play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused )
 {
+	LOGD("Play: start");
   if (!readHeader(fmt, sampleRate, number_of_channels, paused ? STATE_PAUSED : STATE_RUNNING ))
   {
+		LOGD("Play: file not valid");
     stop();
     return false;
   }
@@ -966,6 +976,7 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   }
 
   state = newState;
+	LOGD("Started with state %d", state);
   startInt(irq);
 
   return true;
@@ -1001,7 +1012,6 @@ void  AudioPlayWav::update(void)
   if (updateStep == my_instance &&
       buffer_rd == 0) //! rmv to dbg interleave
   {
-
     /*
       if (buffer_rd != 0) {
       LOGV("Inst: %d, ustep:%d Buf: 0x%x SZ: 0x%x, (Frame:0x%x - %d)\n", my_instance,updateStep, buffer_rd, sz_mem, channels * bytes * 128, buffer_rd / (channels * bytes * 128));
@@ -1011,8 +1021,9 @@ void  AudioPlayWav::update(void)
     buffer_rd = 0;
     size_t len = sz_mem - buffer_rd;
     size_t rd = wavfile.readInISR(&buffer[buffer_rd], len);
-    if (unlikely(rd < len)) {
-      LOGD("EOF");
+    if (unlikely(rd < len))
+		{
+      //LOGD("EOF: %d Bytes read, needed: %d", rd, len);
       if (rd == 0) {
         stop();
         return;
@@ -1034,7 +1045,7 @@ void  AudioPlayWav::update(void)
   {
     AudioStream::transmit(queue[chan], chan);
     AudioStream::release(queue[chan]);
-    //queue[chan] = nullptr;
+    queue[chan] = nullptr;
   } while (++chan < channels);
 
   --data_length;
