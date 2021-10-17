@@ -39,8 +39,8 @@ An updated `index.html` file is supplied which documents the key API calls provi
 ## Main functions
 #### play(File | filename [,paused])
 Plays the `File` object or named file; setting the optional `paused` parameter to `true` allocates and pre-loads the buffer, but does not start playing. Buffer memory is allocated when this function is called, with the amount dependent on the number of audio channels provided in the file.
-#### pause(bool)
-Starts a paused object if the parameter is `true`, or pauses it if `false`
+#### bool pause(bool)
+Starts a paused object if the parameter is `true`, or pauses it if `false`. Returns new state.
 #### stop()
 Stops playing, whether or not it is paused. The file is closed and buffer memory returned to the heap.
 #### isPlaying()
@@ -95,7 +95,7 @@ Examples:
 - `record('test.wav', APW_16BIT_SIGNED, 2)` starts recording a 16Bit stereo file to SD.
 - `record('test.wav', APW_8BIT_UNSIGNED, 1, paused)` prepares (preallocates file, write dummy wave-header, etc)  the recording of a 8Bit mono file. 
 
-#### pause(bool)
+#### bool pause(bool)
 Like above for playing. The wave-file header is written.
 #### stop()
 Like above for playing. The wave-file header is written.

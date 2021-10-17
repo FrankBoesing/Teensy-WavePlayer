@@ -74,8 +74,8 @@ enum APW_STATE : char;
 class AudioBaseWav
 {
   public:
-    void pause(bool pause);
-    void togglePause(void);
+    virtual bool pause(const bool pause) = 0;
+    bool togglePause(void);
     bool isPaused(void);
     bool isStopped(void);
 
@@ -133,8 +133,9 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     bool playRaw(const char *filename, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused = false); // from SD
 
     bool addMemoryForRead(size_t mult) {return addMemory(mult);} // add memory
-    void togglePlayPause(void) {togglePause();}
+    bool togglePlayPause(void) {return togglePause();}
     bool isPlaying(void) {return isRunning();}
+		bool pause(const bool pause);
     uint32_t positionMillis(void);
     uint32_t lengthMillis(void);
     uint32_t channelMask(void) {return channelmask;}
@@ -146,6 +147,7 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     size_t total_length;      			// number of audio data bytes in file
     uint32_t channelmask;           // dwChannelMask
   private:
+		void start(void);
     virtual void update(void);
 		size_t buffer_rd;
 };
@@ -156,7 +158,7 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
   public:
     AudioRecordWav(void): AudioStream(_AudioRecordWav_MaxChannels, queue) {}
     void stop(bool closeFile = true);
-    void pause(const bool pause);
+
     bool record(File file, APW_FORMAT fmt, unsigned int channels, bool paused = false);
     bool record(const char *filename, APW_FORMAT fmt, unsigned int channels, bool paused = false);
 
@@ -167,8 +169,8 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
     bool isRecording(void) {return isRunning();}
     uint32_t lengthMillis(void);
     bool addMemoryForWrite(size_t mult) {return addMemory(mult);} // add memory
-    void toggleRecordPause(void) {togglePause();}
-
+    bool toggleRecordPause(void) {return togglePause();}
+    bool pause(const bool pause);
   private:
     virtual void update(void);
     bool start( APW_FORMAT fmt, unsigned int channels, bool paused = false );
