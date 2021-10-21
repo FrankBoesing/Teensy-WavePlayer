@@ -43,7 +43,7 @@ class apwFile
 {
   public:
     apwFile(void) {reset();}
-    void use(File f) {file = f;fileType = APW_FILE_OTHER;}
+    void use(File *f);
     void open(const char *filename, int mode = FILE_READ);
     void close(void);
     size_t read(void *buf, size_t nbyte);
@@ -63,6 +63,7 @@ class apwFile
     File file;
     FsFile sdFile;
     APW_FILETYPE fileType = APW_FILE_NONE;
+		size_t fpos;
 };
 
 
@@ -105,13 +106,12 @@ class AudioBaseWav
     size_t sz_mem;              	// size of buffer
     int8_t* buffer;
     unsigned int sample_rate;
-    unsigned int channels;        // #of channels in the wave file
-    int data_length;              // number of frames remaining in file /# of recorded frames
     APW_FORMAT dataFmt;
+		APW_ERR last_err;
+    APW_STATE state;     					// play status (stop, pause, running)
     uint8_t my_instance;          // instance id
     uint8_t bytes;            		// 1 or 2 bytes?
-    APW_STATE state;            	// play status (stop, pause, running)
-    APW_ERR last_err;
+		uint8_t channels;        			// #of channels in the wave file
     uint8_t padding;              // value to pad buffer at EOF
     int8_t updateStep = -1;
 
@@ -135,22 +135,27 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     bool addMemoryForRead(size_t mult) {return addMemory(mult);} // add memory
     bool togglePlayPause(void) {return togglePause();}
     bool isPlaying(void) {return isRunning();}
-		bool pause(const bool pause);
+		bool pause(bool pause);
     uint32_t positionMillis(void);
 		size_t position();
 		bool setPosition(size_t sample);
+		void loop(bool enable);
+		void loop(size_t firstSample, size_t lastSample, uint16_t count);
+		int loopCount(void);
     uint32_t lengthMillis(void);
     uint32_t channelMask(void) {return channelmask;}
   protected:
     bool _play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused );
     bool readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState );
-		size_t dataReader(int8_t *buffer, size_t len);
+		size_t dataReader(int8_t *buffer, int len);
     audio_block_t *queue[_AudioPlayWav_MaxChannels];
     _tEncoderDecoder decoder;
     size_t total_length;      			// number of audio data bytes in file
 		size_t firstSampleOffset;		    // file position of first sample
-		size_t lastSample;							// Number of last sample
+		size_t lastSample;							// file position of last sample
+		size_t loopFirst, loopLast;
     uint32_t channelmask;           // dwChannelMask
+		uint16_t _loopCount;
   //private:
 		void start(void);
     virtual void update(void);
@@ -182,6 +187,7 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
     _tEncoderDecoder encoder;
     audio_block_t *queue[_AudioRecordWav_MaxChannels] = {nullptr};
     size_t buffer_wr, buffer_wr_start;
+		int data_length;              													// # of recorded frames
     int data_length_old;
 };
 #endif //enable

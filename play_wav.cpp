@@ -46,7 +46,7 @@
 #endif
 
 #define HOT __attribute__((hot))
-#define COLD __attribute__((/*cold,*/ optimize("Os")))
+#define COLD __attribute__((/*cold,*/ optimize("Os"), noinline, noclone))
 #define PACKED __attribute__((packed))
 #define INLINE inline __attribute__((always_inline))
 #define likely(x) __builtin_expect(!!(x), 1)
@@ -131,11 +131,19 @@ void apwFile::reset(void)
   fileType = APW_FILE_NONE;
 }
 
+void apwFile::use(File *f)
+{
+	file = *f;
+	fpos = file.position();
+	fileType = APW_FILE_OTHER;
+}
+
 void apwFile::open(const char *filename, int mode)
 {
   bool irq = stopInt();
   sdFile = SD.sdfs.open(filename, mode);
   fileType = APW_FILE_SD;
+	fpos = 0;
   startInt(irq);
   LOGI("Open \"%s\"", filename);
   if (!sdFile) {
@@ -149,6 +157,7 @@ void apwFile::close(void)
 	bool irq = stopInt();
 	if (sdFile) sdFile.close();
 	if (file) file.close();
+	fpos = 0;
 	startInt(irq);
   LOGD("File closed");
 }
@@ -169,8 +178,8 @@ bool apwFile::seek(size_t pos)
   bool irq = stopInt();
   switch (fileType)
   {
-    case APW_FILE_SD : b = sdFile.seek(pos); break;
-    case APW_FILE_OTHER : b = file.seek(pos); break;
+    case APW_FILE_SD : b = sdFile.seek(pos); fpos = pos; break;
+    case APW_FILE_OTHER : b = file.seek(pos); fpos = pos; break;
     default : b = false; LOGW("Seek on unknown file type"); break;
   }
   startInt(irq);
@@ -179,16 +188,7 @@ bool apwFile::seek(size_t pos)
 
 size_t apwFile::position(void)
 {
-  size_t p;
-  bool irq = stopInt();
-  switch (fileType)
-  {
-    case APW_FILE_SD : p = sdFile.position(); break;
-    case APW_FILE_OTHER : p = file.position(); break;
-    default : p = 0; LOGW("position() on unknown file type"); break;
-  }
-  startInt(irq);
-  return p;
+  return fpos;
 }
 
 size_t apwFile::size(void)
@@ -254,8 +254,9 @@ INLINE size_t apwFile::readInISR(void *buf, size_t nbyte)
 		r = sdFile.read(buf, nbyte);
   else
 		r = file.read(buf, nbyte);
+	fpos += r;
 
-	if (r < nbyte) LOGV("Read req. 0x%04x, got: 0x%04x", nbyte, r);
+	if (r < nbyte) LOGE("Read req. 0x%x, got: 0x%x", nbyte, r);
 
 	DBGPIN_LOW;
 	return r;
@@ -277,6 +278,7 @@ INLINE size_t apwFile::writeInISR(void *buf, size_t nbyte)
 		r = sdFile.write(buf, nbyte);
 	else
 		r = file.write(buf, nbyte);
+	fpos += r;
 	DBGPIN_LOW;
 	return r;
 }
@@ -315,20 +317,22 @@ void AudioBaseWav::reset(void)
   last_err = ERR_OK;
   dataFmt = APW_NONE;
   buffer = nullptr;
-	data_length = 0;
   sample_rate = channels = bytes = 0;
 }
 
 inline bool AudioBaseWav::isPaused(void) {
+	asm("":::"memory");
   return (state == STATE_PAUSED);
 }
 
 inline bool AudioBaseWav::isStopped(void) {
+	asm("":::"memory");
   return (state == STATE_STOP);
 }
 
 bool AudioBaseWav::isRunning(void)
 {
+	asm("":::"memory");
   bool running = state == STATE_RUNNING;
 	//LOGV("isRunning()? -> %d", running);
   return running;
@@ -339,7 +343,6 @@ bool AudioBaseWav::togglePause(void)
   pause(state == STATE_RUNNING);
 	return isRunning();
 }
-
 
 bool AudioBaseWav::addMemory(size_t mult)
 {
@@ -373,7 +376,6 @@ void AudioBaseWav::freeBuffer(void)
   }
   buffer = nullptr;
   sz_mem = 0;
-	data_length = 0;
 }
 
 
@@ -593,7 +595,7 @@ bool AudioPlayWav::play(File file, const bool paused)
 {
   stop();
   wavfile.reset();
-  wavfile.use(file);
+  wavfile.use(&file);
   return _play(APW_NONE, 0, 0, paused);
 }
 
@@ -609,7 +611,7 @@ bool AudioPlayWav::playRaw(File file, APW_FORMAT fmt, uint32_t sampleRate, uint8
 {
   stop();
   wavfile.reset();
-  wavfile.use(file);
+  wavfile.use(&file);
   return _play(fmt, sampleRate, number_of_channels, paused);
 }
 
@@ -633,6 +635,7 @@ bool AudioPlayWav::_play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_
   return true;
 }
 
+COLD
 void AudioPlayWav::stop(void)
 {
   APW_STATE oldstate;
@@ -773,8 +776,7 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   tDataHeader dataHeader;
 
   reset();
-  buffer_rd = total_length = channelmask = 0;
-
+  _loopCount = buffer_rd = total_length = channelmask = 0;
   sample_rate = sampleRate;
   channels = number_of_channels;
   dataFmt = fmt;
@@ -818,10 +820,7 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
       rd = wavfile.read(&dataHeader, sizeof(dataHeader));
       dataHeader.chunkSize = __builtin_bswap32(dataHeader.chunkSize);
       if (rd < sizeof(dataHeader)) return false;
-      //Serial.printf("Chunk:%c%c%c%c", (char)dataHeader.chunkID & 0xff, (char)(dataHeader.chunkID >> 8 & 0xff), (char)(dataHeader.chunkID  >> 16 & 0xff), (char)(dataHeader.chunkID >> 24 &0xff));
-      //Serial.printf(" 0x%x size: %d\n",dataHeader.chunkID, dataHeader.chunkSize);
       if (!COMMread && dataHeader.chunkID == cCOMM) {
-        //Serial.print(":COMM ");
         taifcCommonChunk commonChunk;
         rd = wavfile.read(&commonChunk, sizeof(commonChunk));
         if (rd < sizeof(commonChunk)) return false;
@@ -831,11 +830,8 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
         bytes = commonChunk.sampleSize / 8;
         total_length = __builtin_bswap32(commonChunk.numSampleFrames) * channels * bytes;
 
-        //Serial.printf("Channels:%d Length:%d Bytes:%d\n", (int)channels, (int)total_length, (int)bytes);
         if (total_length == 0) return false;
         if (commonChunk.sampleSize != 8 && commonChunk.sampleSize != 16) return false;
-
-        //if (isAIFC) Serial.printf("Compression:%c%c%c%c 0x%x\n", (char)commonChunk.compressionType & 0xff, (char)(commonChunk.compressionType >> 8 & 0xff), (char)(commonChunk.compressionType  >> 16 & 0xff), (char)(commonChunk.compressionType >> 24 &0xff), commonChunk.compressionType);
 
         if (bytes == 2) {
           if (isAIFC) return false;
@@ -860,7 +856,6 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
       } else if (dataHeader.chunkID == cSSND) {
         //todo: offset etc...
 
-        //Serial.println(":SSND");
         SSNDread = true;
         if (COMMread) break;
       } ;
@@ -891,7 +886,6 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
 				uint8_t bytes;
         tFmtHeaderEx fmtHeader;
         memset((void*)&fmtHeader, 0, sizeof(tFmtHeaderEx));
-        //Serial.println(dataHeader.chunkSize);
         if (dataHeader.chunkSize < 16) {
           wavfile.read(&fmtHeader, sizeof(tFmtHeader));
           bytes = 1;
@@ -905,7 +899,6 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
           memset((void*)&fmtHeaderExtensible, 0, sizeof(fmtHeaderExtensible));
           wavfile.read(&fmtHeaderExtensible, sizeof(fmtHeaderExtensible));
           channelmask = fmtHeaderExtensible.dwChannelMask;
-          //Serial.printf("channel mask: 0x%x\n", channelmask);
         }
 
         LOGV("Format: %d Bits: %d", fmtHeader.wFormatTag, fmtHeader.wBitsPerSample);
@@ -924,7 +917,6 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
         if (fmtHeader.wFormatTag == 7) {
           if (bytes != 1) return false;
           dataFmt = APW_ULAW; //ulaw
-          //Serial.println("ULAW!");
         }
         fmtok = true;
       }
@@ -949,15 +941,22 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   last_err = ERR_OK;
   bytes = bytesPerSample[dataFmt];
   decoder = decoders[dataFmt];
-  padding = (dataFmt != APW_8BIT_UNSIGNED) ? 0 : 0x80;
+  padding = (dataFmt == APW_8BIT_UNSIGNED) ? 0x80 : 0x00;
   LOGV("SampleRate: %d, Channels: %d, Bytes: %d, Length: %dms",
        sample_rate, channels, bytes,
        round( msPerSample * total_length / (bytes * channels) )
       );
 
   sz_frame = AUDIO_BLOCK_SAMPLES * channels * bytes;
-	data_length = total_length / sz_frame;
-  firstSampleOffset = wavfile.position();
+
+	size_t wfp = wavfile.position();
+	size_t wfz = wavfile.size();
+
+	//the total_length may be wrong. try to adjust it.
+	if (total_length > wfz - wfp) total_length = wfz - wfp;
+
+  firstSampleOffset = wfp;
+	lastSample = firstSampleOffset + total_length;
 
   //calculate the needed buffer memory:
   sz_mem = _instances * sz_frame;
@@ -975,30 +974,137 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   return true;
 }
 
-HOT
-size_t AudioPlayWav::dataReader(int8_t *buffer, size_t len)
+bool AudioPlayWav::setPosition(size_t sample)
 {
-    size_t rd = wavfile.readInISR(buffer, len);
-    if (unlikely(rd < len))
+	if (state == STATE_STOP) return false;
+	LOGD("setPosition(0x%x)", sample);
+	if (state == STATE_PAUSED) {
+		bool irq = stopInt();
+		sample = sample * bytes * channels + firstSampleOffset;
+		if (sample < lastSample - AUDIO_BLOCK_SAMPLES)
 		{
-      //LOGD("EOF: %d Bytes read, needed: %d", rd, len);
-      if (rd == 0) {
-				return 0;
-      } else
-      {
-        len -= rd;
-				buffer += rd;
-        memset(buffer, padding, len);
-        data_length = 1;
-      }
-    }
-		return rd;
+			buffer_rd = sz_mem;
+			wavfile.seek(sample);
+		}
+		startInt(irq);
+		return true;
+	}
+	/*
+	if (state == STATE_RUNNING)
+	Im Detail steckt der Teufel... :-)
+	Dies  sollte möglicherweise nicht implementiert werden.
+	-> Durch die interleaved reads und den großen buffer ist es nicht möglich,
+	die Position zeitnah zu setzen.
+	Für die loops ist es möglich, da es im voraus geschieht.
+	Für setPosition() geht das aber nicht!
+  */
+	LOGE("setPosition(): Not implemented.");
+	return false;
+}
+
+void AudioPlayWav::loop(bool enable)
+{
+	if (state == STATE_STOP) return;
+	if (enable && _loopCount == 0)
+	{
+		_loopCount = -1;
+		loopFirst = firstSampleOffset;
+		loopLast = lastSample;
+	}
+	else
+		_loopCount = 0;
+}
+
+void AudioPlayWav::loop(size_t first, size_t last, uint16_t count)
+{
+ if (state == STATE_STOP) return;
+
+ bool irq = stopInt();
+ loopFirst = first * bytes * channels + firstSampleOffset;
+ if (last == 0) loopLast = lastSample;
+ else loopLast = last * bytes * channels + firstSampleOffset;
+
+ if (loopLast - loopFirst < sz_mem) loopLast = loopFirst + sz_mem;
+ if (loopLast > lastSample) loopLast = lastSample;
+ if (loopLast <= loopFirst) count = 0;
+ LOGD("loop(0x%x, 0x%x, %d)", loopFirst, loopLast, count);
+
+ if (wavfile.position() >= loopLast) count += 1;
+ _loopCount = count;
+ startInt(irq);
+}
+
+int AudioPlayWav::loopCount(void) {
+	asm("":::"memory"); //<- don't remove, will not work in a loop without!
+	return _loopCount;
+}
+
+HOT
+size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
+{
+	// this runs in update();
+
+	/*
+	Loops:
+	IF enabled {
+	  IF read would read above the loop-end-position
+		  (the loop-end-position MUST NOT exceed EOF)
+		then:
+		- read until loop-end-position
+		- seek(loop-start-position)
+		- read the remaining data
+		return
+	}
+	- just read
+	- on EOF fill remaining data with "padding"
+
+	On EOF, the dataReader should return a number < len
+	*/
+
+  int rd;
+
+	if (_loopCount > 0)
+	{
+		size_t pos = wavfile.position();
+		if (unlikely(pos + len > loopLast))
+		{
+			_loopCount--;
+			LOGD("LoopCount: %d", _loopCount);
+			LOGV("Loop-1: last: 0x%x pos: 0x%x diff: 0x%x len: 0x%x", loopLast, pos, loopLast - pos, len);
+			int l = loopLast - pos;
+			if (l > 0)
+			{
+				if (l > len ) l = len;
+				LOGV("Loop-2: read: 0x%x", l);
+				rd = wavfile.readInISR(buffer, l);
+			}
+		  else
+				rd = 0;
+
+			wavfile.seek(loopFirst);
+			LOGV("Loop-3: pos: 0x%x read: 0x%x ", loopFirst, len - rd);
+			rd += wavfile.readInISR(buffer + rd, len - rd);
+			return rd;
+		}
+	}
+
+	rd = wavfile.readInISR(buffer, len);
+
+  // here would be right place to add playing backwards, up-/downsampling etc ....
+
+	if (unlikely(rd < len))
+	{
+		LOGV("EOF: 0x%x Bytes read, needed: 0x%x -> fill 0x%x with 0x%x", rd, len, len - rd, padding);
+		memset(buffer + rd, padding, len - rd);
+	}
+
+	return rd;
 }
 
 COLD
 void AudioPlayWav::start(void)
 {
-	size_t len, x, buffer_rd_old, rd;
+	size_t len, x, buffer_rd_old;
 
 	LOGV("Play: Pause -> RUN");
   bool irq = stopInt();
@@ -1072,8 +1178,6 @@ bool AudioPlayWav::pause(const bool pause)
   return isPaused();
 }
 
-//bool AudioPlayWav::setPosition(size_t sample);
-
 HOT
 void AudioPlayWav::update(void)
 {
@@ -1081,7 +1185,22 @@ void AudioPlayWav::update(void)
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
 
-  unsigned int chan;
+  uint8_t chan;
+  bool last;
+
+  if (buffer_rd >= sz_mem) buffer_rd = 0;
+  if (updateStep == my_instance &&
+      buffer_rd == 0) //! rmv to dbg interleave
+  {
+    size_t len = sz_mem - buffer_rd;
+		size_t rd = dataReader(&buffer[buffer_rd], len);
+		if (unlikely(rd == 0)) {
+			stop();
+			return;
+		}
+		last = rd < len;
+		buffer_rd = sz_mem - len;
+  } else last = false;
 
   // allocate the audio blocks to transmit
   chan = 0;
@@ -1098,26 +1217,6 @@ void AudioPlayWav::update(void)
     }
   } while (++chan < channels);
 
-
-  if (buffer_rd >= sz_mem) buffer_rd = 0;
-  if (updateStep == my_instance &&
-      buffer_rd == 0) //! rmv to dbg interleave
-  {
-    /*
-      if (buffer_rd != 0) {
-      LOGV("Inst: %d, ustep:%d Buf: 0x%x SZ: 0x%x, (Frame:0x%x - %d)\n", my_instance,updateStep, buffer_rd, sz_mem, channels * bytes * 128, buffer_rd / (channels * bytes * 128));
-      } */ // Debug interleave
-    // buffer_rd is alway 0 here.. the compiler knows about that and will optimize it away.
-    // just leave it in for easier debug.
-    buffer_rd = 0;
-    size_t len = sz_mem - buffer_rd;
-		size_t rd = dataReader(&buffer[buffer_rd], len);
-		if (!rd) {
-			stop();
-			return;
-		}
-  }
-
   // copy the samples to the audio blocks:
   buffer_rd += decoder(&buffer[buffer_rd], queue, channels);
 
@@ -1127,14 +1226,10 @@ void AudioPlayWav::update(void)
   {
     AudioStream::transmit(queue[chan], chan);
     AudioStream::release(queue[chan]);
-    queue[chan] = nullptr;
+    //queue[chan] = nullptr;
   } while (++chan < channels);
 
-  --data_length;
-  if (unlikely(data_length <= 0)) {
-    LOGI("No Data anymore.");
-    stop(); // proper tidy up when playing is done
-  }
+  if (last) stop();
 
 }
 
@@ -1155,10 +1250,11 @@ size_t AudioPlayWav::position()
 		asm("":::"memory");
   } while ( __strexw(1, &safe_read) );
 
-  if (state == STATE_STOP) return 0;
-#endif
 
-	return ((total_length / (bytes * channels)) - data_length * AUDIO_BLOCK_SAMPLES );
+#endif
+  asm("":::"memory");
+  if (state == STATE_STOP) return 0;
+  return (wavfile.position() - firstSampleOffset + sz_mem - buffer_rd) / (bytes * channels);
 }
 
 uint32_t AudioPlayWav::positionMillis(void)
@@ -1168,6 +1264,7 @@ uint32_t AudioPlayWav::positionMillis(void)
 
 uint32_t AudioPlayWav::lengthMillis(void)
 {
+	asm("":::"memory");
   //if (state == STATE_STOP) return 0; // will return 0 anyway
   return roundf( msPerSample * total_length / (bytes * channels) );
 }
@@ -1329,7 +1426,7 @@ bool AudioRecordWav::record(File file, APW_FORMAT fmt, unsigned int numchannels,
     return false;
   }
   wavfile.reset();
-  wavfile.use(file);
+  wavfile.use(&file);
   return start( fmt, numchannels, paused );
 }
 
@@ -1521,7 +1618,7 @@ void  AudioRecordWav::update(void)
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
 
-  unsigned int chan;
+  uint8_t chan;
   chan = 0;
 	audio_block_t *qcopy[channels];
   do
