@@ -315,6 +315,7 @@ void AudioBaseWav::reset(void)
   last_err = ERR_OK;
   dataFmt = APW_NONE;
   buffer = nullptr;
+	data_length = 0;
   sample_rate = channels = bytes = 0;
 }
 
@@ -372,6 +373,7 @@ void AudioBaseWav::freeBuffer(void)
   }
   buffer = nullptr;
   sz_mem = 0;
+	data_length = 0;
 }
 
 
@@ -638,6 +640,8 @@ void AudioPlayWav::stop(void)
   state = STATE_STOP;
   wavfile.close();
   freeBuffer();
+	reset();
+	total_length = 0;
   if (oldstate != STATE_STOP) LOGD("Play: stop");
 }
 
@@ -952,7 +956,8 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
       );
 
   sz_frame = AUDIO_BLOCK_SAMPLES * channels * bytes;
-  data_length = total_length / sz_frame;
+	data_length = total_length / sz_frame;
+  firstSampleOffset = wavfile.position();
 
   //calculate the needed buffer memory:
   sz_mem = _instances * sz_frame;
@@ -968,6 +973,26 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
 	else state = STATE_PAUSED;
 
   return true;
+}
+
+HOT
+size_t AudioPlayWav::dataReader(int8_t *buffer, size_t len)
+{
+    size_t rd = wavfile.readInISR(buffer, len);
+    if (unlikely(rd < len))
+		{
+      //LOGD("EOF: %d Bytes read, needed: %d", rd, len);
+      if (rd == 0) {
+				return 0;
+      } else
+      {
+        len -= rd;
+				buffer += rd;
+        memset(buffer, padding, len);
+        data_length = 1;
+      }
+    }
+		return rd;
 }
 
 COLD
@@ -1016,11 +1041,7 @@ void AudioPlayWav::start(void)
 			LOGV("Move %d already read bytes from 0x%x to 0x%x", elen, buffer_rd_old, buffer_rd);
 			memmove(&buffer[buffer_rd], &buffer[buffer_rd_old], elen);
 			len -= elen;
-			rd = wavfile.read(&buffer[buffer_rd + elen], len);
-			if (rd < len) {
-				//Still not enough data - we're near EOF -  Fill with padding
-				memset(&buffer[buffer_rd + elen + rd], padding, len - elen - rd);
-			}
+			dataReader(&buffer[buffer_rd + elen], len);
 			goto end;
 		}
 
@@ -1028,12 +1049,7 @@ void AudioPlayWav::start(void)
 
 readData:
   // 2. load data from file
-		rd = wavfile.read(&buffer[buffer_rd], len);
-		if (rd < len) {
-			//3. Not enough data read -  Fill with padding
-			memset(&buffer[buffer_rd + rd], padding, len - rd);
-		}
-
+	  dataReader(&buffer[buffer_rd], len);
   }
 
 end:
@@ -1056,8 +1072,10 @@ bool AudioPlayWav::pause(const bool pause)
   return isPaused();
 }
 
+//bool AudioPlayWav::setPosition(size_t sample);
+
 HOT
-void  AudioPlayWav::update(void)
+void AudioPlayWav::update(void)
 {
 
   if (++updateStep >= _instances) updateStep = 0;
@@ -1093,20 +1111,11 @@ void  AudioPlayWav::update(void)
     // just leave it in for easier debug.
     buffer_rd = 0;
     size_t len = sz_mem - buffer_rd;
-    size_t rd = wavfile.readInISR(&buffer[buffer_rd], len);
-    if (unlikely(rd < len))
-		{
-      //LOGD("EOF: %d Bytes read, needed: %d", rd, len);
-      if (rd == 0) {
-        stop();
-        return;
-      } else
-      {
-        len -= rd;
-        memset(&buffer[rd + buffer_rd], padding, len);
-        data_length = 1;
-      }
-    }
+		size_t rd = dataReader(&buffer[buffer_rd], len);
+		if (!rd) {
+			stop();
+			return;
+		}
   }
 
   // copy the samples to the audio blocks:
@@ -1129,34 +1138,38 @@ void  AudioPlayWav::update(void)
 
 }
 
-
-uint32_t AudioPlayWav::positionMillis(void)
+size_t AudioPlayWav::position()
 {
+#if 0 // not needed anymore.
+  uint32_t safe_read;
+  int data_length;
+	APW_STATE state;
+
   //use an interrupt detector to make sure all vars are consistent.
   //strex will fail if an interrupt occured. An other way would be to block audio interrupts.
-
-  uint32_t safe_read;
-  size_t total_length;
-  int data_length;
-  uint8_t bytes, channels;
-
   do
   {
     __ldrexw(&safe_read);
-    total_length = this->total_length;
-    bytes = this->bytes;
-    channels = this->channels;
+		state = this->state;
     data_length = this->data_length;
+		asm("":::"memory");
   } while ( __strexw(1, &safe_read) );
 
-  if (data_length < 0) data_length = 0;
+  if (state == STATE_STOP) return 0;
+#endif
 
-  return round( msPerSample * ((total_length / (bytes * channels)) - data_length * AUDIO_BLOCK_SAMPLES ));
+	return ((total_length / (bytes * channels)) - data_length * AUDIO_BLOCK_SAMPLES );
+}
+
+uint32_t AudioPlayWav::positionMillis(void)
+{
+  return roundf( position() * msPerSample);
 }
 
 uint32_t AudioPlayWav::lengthMillis(void)
 {
-  return round( msPerSample * total_length / (bytes * channels) );
+  //if (state == STATE_STOP) return 0; // will return 0 anyway
+  return roundf( msPerSample * total_length / (bytes * channels) );
 }
 
 //----------------------------------------------------------------------------------------------------

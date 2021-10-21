@@ -137,16 +137,21 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     bool isPlaying(void) {return isRunning();}
 		bool pause(const bool pause);
     uint32_t positionMillis(void);
+		size_t position();
+		bool setPosition(size_t sample);
     uint32_t lengthMillis(void);
     uint32_t channelMask(void) {return channelmask;}
   protected:
     bool _play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused );
     bool readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState );
+		size_t dataReader(int8_t *buffer, size_t len);
     audio_block_t *queue[_AudioPlayWav_MaxChannels];
     _tEncoderDecoder decoder;
     size_t total_length;      			// number of audio data bytes in file
+		size_t firstSampleOffset;		    // file position of first sample
+		size_t lastSample;							// Number of last sample
     uint32_t channelmask;           // dwChannelMask
-  private:
+  //private:
 		void start(void);
     virtual void update(void);
 		size_t buffer_rd;
@@ -171,7 +176,7 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
     bool addMemoryForWrite(size_t mult) {return addMemory(mult);} // add memory
     bool toggleRecordPause(void) {return togglePause();}
     bool pause(const bool pause);
-  private:
+  protected:
     virtual void update(void);
     bool start( APW_FORMAT fmt, unsigned int channels, bool paused = false );
     _tEncoderDecoder encoder;
