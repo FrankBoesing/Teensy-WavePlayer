@@ -591,41 +591,42 @@ static const _tEncoderDecoder decoders[numDecoders] = {
 
 //----------------------------------------------------------------------------------------------------
 
-bool AudioPlayWav::play(File file, const bool paused)
+bool AudioPlayWav::play(File file, bool paused, bool autorewind)
 {
   stop();
   wavfile.reset();
   wavfile.use(&file);
-  return _play(APW_NONE, 0, 0, paused);
+  return _play(APW_NONE, 0, 0, paused, autorewind);
 }
 
-bool AudioPlayWav::play(const char *filename, const bool paused)
+bool AudioPlayWav::play(const char *filename, bool paused, bool autorewind)
 {
   stop();
   wavfile.reset();
   wavfile.open(filename);
-  return _play(APW_NONE, 0, 0, paused);
+  return _play(APW_NONE, 0, 0, paused, autorewind);
 }
 
-bool AudioPlayWav::playRaw(File file, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused)
+bool AudioPlayWav::playRaw(File file, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused, bool autorewind)
 {
   stop();
   wavfile.reset();
   wavfile.use(&file);
-  return _play(fmt, sampleRate, number_of_channels, paused);
+  return _play(fmt, sampleRate, number_of_channels, paused, autorewind);
 }
 
-bool AudioPlayWav::playRaw(const char *filename, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused)
+bool AudioPlayWav::playRaw(const char *filename, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused, bool autorewind)
 {
   stop();
   wavfile.reset();
   File file = SD.open(filename);
-  return _play(fmt, sampleRate, number_of_channels, paused);
+  return _play(fmt, sampleRate, number_of_channels, paused, autorewind);
 }
 
-bool AudioPlayWav::_play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused )
+bool AudioPlayWav::_play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused, bool autorewind)
 {
 	LOGI("Play: start");
+  this->autorewind = autorewind;
   if (!readHeader(fmt, sampleRate, number_of_channels, paused ? STATE_PAUSED : STATE_RUNNING ))
   {
 		LOGI("can not play.");
@@ -1178,6 +1179,17 @@ bool AudioPlayWav::pause(const bool pause)
   return isPaused();
 }
 
+COLD
+void AudioPlayWav::stopFromUpdate(void)
+{
+	if (autorewind) {
+		state = STATE_PAUSED;
+		buffer_rd = sz_mem;
+		wavfile.seek(firstSampleOffset);
+	}
+	else stop();
+}
+
 HOT
 void AudioPlayWav::update(void)
 {
@@ -1195,7 +1207,7 @@ void AudioPlayWav::update(void)
     size_t len = sz_mem - buffer_rd;
 		size_t rd = dataReader(&buffer[buffer_rd], len);
 		if (unlikely(rd == 0)) {
-			stop();
+			stopFromUpdate();
 			return;
 		}
 		last = rd < len;
@@ -1229,7 +1241,7 @@ void AudioPlayWav::update(void)
     //queue[chan] = nullptr;
   } while (++chan < channels);
 
-  if (last) stop();
+  if (last) stopFromUpdate();
 
 }
 
@@ -1372,7 +1384,7 @@ static const _tEncoderDecoder encoders[numDecoders] = {
 //----------------------------------------------------------------------------------------------------
 #if 1
 
-void AudioRecordWav::stop(bool closeFile)
+void AudioRecordWav::stop()
 {
   APW_STATE oldstate;
   oldstate = state;
@@ -1386,12 +1398,11 @@ void AudioRecordWav::stop(bool closeFile)
   if (oldstate != STATE_STOP)
     LOGD("Recording stop. Length %dms, Filesize %0.2fkB",
          lengthMillis(), wavfile.size() / 1024.0f);
-  if (likely(wavfile)) {
+
+	if (wavfile) {
     writeHeader(wavfile);
-    if (likely(closeFile)) {
-      wavfile.truncate();
-      wavfile.close();
-    }
+    wavfile.truncate();
+    wavfile.close();
   }
 
 }

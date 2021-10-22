@@ -127,10 +127,10 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     AudioPlayWav(void) : AudioStream(0, NULL) {}
     void stop(void);
 
-    bool play(File file, bool paused = false);
-    bool play(const char *filename, bool paused = false); // play from SD
-    bool playRaw(File file, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused = false);
-    bool playRaw(const char *filename, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused = false); // from SD
+    bool play(File file, bool paused = false, bool autorewind = false);
+    bool play(const char *filename, bool paused = false, bool autorewind = false); // play from SD
+    bool playRaw(File file, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused = false, bool autorewind = false);
+    bool playRaw(const char *filename, APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused = false, bool autorewind = false); // from SD
 
     bool addMemoryForRead(size_t mult) {return addMemory(mult);} // add memory
     bool togglePlayPause(void) {return togglePause();}
@@ -145,8 +145,9 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     uint32_t lengthMillis(void);
     uint32_t channelMask(void) {return channelmask;}
   protected:
-    bool _play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused );
+    bool _play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused, bool autorewind );
     bool readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState );
+		void stopFromUpdate(void);
 		size_t dataReader(int8_t *buffer, int len);
     audio_block_t *queue[_AudioPlayWav_MaxChannels];
     _tEncoderDecoder decoder;
@@ -156,6 +157,7 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
 		size_t loopFirst, loopLast;
     uint32_t channelmask;           // dwChannelMask
 		uint16_t _loopCount;
+		bool autorewind;
   //private:
 		void start(void);
     virtual void update(void);
@@ -167,7 +169,7 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
 {
   public:
     AudioRecordWav(void): AudioStream(_AudioRecordWav_MaxChannels, queue) {}
-    void stop(bool closeFile = true);
+    void stop(void);
 
     bool record(File file, APW_FORMAT fmt, unsigned int channels, bool paused = false);
     bool record(const char *filename, APW_FORMAT fmt, unsigned int channels, bool paused = false);
