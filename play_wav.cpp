@@ -320,12 +320,12 @@ void AudioBaseWav::reset(void)
   sample_rate = channels = bytes = 0;
 }
 
-inline bool AudioBaseWav::isPaused(void) {
+bool AudioBaseWav::isPaused(void) {
 	asm("":::"memory");
   return (state == STATE_PAUSED);
 }
 
-inline bool AudioBaseWav::isStopped(void) {
+bool AudioBaseWav::isStopped(void) {
 	asm("":::"memory");
   return (state == STATE_STOP);
 }
@@ -1166,13 +1166,14 @@ end:
 }
 
 
-bool AudioPlayWav::pause(const bool pause)
+bool AudioPlayWav::pause(bool pause)
 {
-  switch (state)
-  {
-    case STATE_STOP: break;
-		case STATE_PAUSED: start(); break;
-    case STATE_RUNNING: state = STATE_PAUSED; break;
+	APW_STATE s = state;
+
+	if (pause) {
+		if (s == STATE_RUNNING) state = STATE_PAUSED;
+	} else {
+		if (s == STATE_PAUSED) start();
 	}
 
 	LOGV("State: \"%s\"", stateStr[state]);
