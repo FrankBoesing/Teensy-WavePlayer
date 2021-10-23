@@ -307,6 +307,7 @@ FLASHMEM
 AudioBaseWav::~AudioBaseWav(void)
 {
   state = STATE_STOP;
+	asm("":::"memory");
   wavfile.close();
   freeBuffer();
 }
@@ -314,6 +315,7 @@ AudioBaseWav::~AudioBaseWav(void)
 void AudioBaseWav::reset(void)
 {
   state = STATE_STOP;
+	asm("":::"memory");
   last_err = ERR_OK;
   dataFmt = APW_NONE;
   buffer = nullptr;
@@ -340,7 +342,9 @@ bool AudioBaseWav::isRunning(void)
 
 bool AudioBaseWav::togglePause(void)
 {
-  pause(state == STATE_RUNNING);
+  APW_STATE = state;
+	if (s != STATE_STOP)
+		pause(s == STATE_RUNNING);
 	return isRunning();
 }
 
