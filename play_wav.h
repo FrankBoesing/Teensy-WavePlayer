@@ -5,6 +5,12 @@
    LICENSE: MIT
 */
 
+/*
+
+Known problem: Does not work when used as "dynamic audio object".
+
+*/
+
 #pragma once
 #include <Arduino.h>
 
