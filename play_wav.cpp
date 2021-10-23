@@ -642,6 +642,7 @@ void AudioPlayWav::stop(void)
   APW_STATE oldstate;
   oldstate = state;
   state = STATE_STOP;
+	asm("":::"memory"); // don't remove
   wavfile.close();
   freeBuffer();
 	reset();
@@ -1185,6 +1186,7 @@ void AudioPlayWav::stopFromUpdate(void)
 {
 	if (autorewind) {
 		state = STATE_PAUSED;
+		asm("":::"memory");// dont't remove
 		buffer_rd = sz_mem;
 		wavfile.seek(firstSampleOffset);
 	}
