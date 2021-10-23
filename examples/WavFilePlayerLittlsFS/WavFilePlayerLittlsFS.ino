@@ -1,15 +1,9 @@
-// Simple WAV file player example
-//
-//
+// WAV file player example LittleFS
 // This example code is in the public domain.
 
-
 #include <LittleFS.h>
-#include <play_wav.h>
 
-//LittleFS_QSPIFlash myfs;
 LittleFS_QPINAND myfs;
-
 uint64_t fTot, totSize1;
 
 #include <Audio.h>
@@ -17,102 +11,116 @@ uint64_t fTot, totSize1;
 #include <SPI.h>
 #include <SD.h>
 
+#include <play_wav.h>
+
 // GUItool: begin automatically generated code
-AudioPlayWav             playSdWav1;     //xy=323,171
-AudioMixer4              mixer1;         //xy=647,123
-AudioMixer4              mixer3;         //xy=648,212
-AudioOutputPT8211        audioOutput;       //xy=828,169
+AudioPlayWav             playWav1;
+AudioPlayWav             playWav2;
+AudioPlayWav             playWav3;
+AudioPlayWav             playWav4;
+AudioPlayWav             playWav5;
+AudioPlayWav             playWav6;
+AudioMixer4              mixer1;
+AudioMixer4              mixer2;
+AudioOutputPT8211        audioOutput;
 //AudioOutputI2S           audioOutput;
-AudioConnection          patchCord1(playSdWav1, 0, mixer1, 0);
-AudioConnection          patchCord2(playSdWav1, 1, mixer3, 0);
-AudioConnection          patchCord3(playSdWav1, 2, mixer1, 1);
-AudioConnection          patchCord4(playSdWav1, 3, mixer3, 1);
-AudioConnection          patchCord5(playSdWav1, 4, mixer1, 2);
-AudioConnection          patchCord6(playSdWav1, 5, mixer3, 2);
-AudioConnection          patchCord7(playSdWav1, 6, mixer1, 3);
-AudioConnection          patchCord8(playSdWav1, 7, mixer3, 3);
-AudioConnection          patchCord9(mixer1, 0, audioOutput, 0);
-AudioConnection          patchCord10(mixer3, 0, audioOutput, 1);
+//AudioOutputMQS           audioOutput;
+AudioConnection          patchCord1(playWav1, 0, mixer1, 0);
+AudioConnection          patchCord2(playWav2, 0, mixer1, 1);
+AudioConnection          patchCord3(playWav3, 0, mixer1, 2);
+AudioConnection          patchCord4(playWav4, 0, mixer1, 3);
+AudioConnection          patchCord5(playWav5, 0, mixer2, 0);
+AudioConnection          patchCord6(playWav6, 0, mixer2, 1);
+AudioConnection          patchCord7(mixer1, 0, audioOutput, 0);
+AudioConnection          patchCord8(mixer2, 0, audioOutput, 1);
 
-AudioControlSGTL5000     sgtl5000_1;
+const int fileCnt = 6;
+const char *filename[fileCnt] = {
+  "102790__mhc__acoustic-open-hihat2.wav",
+  "171104__dwsd__kick-gettinglaid.wav",
+  "201159__kiddpark__cash-register.wav",
+  "82583__kevoy__snare-drum-4.wav",
+  "86334__zgump__tom-0104.wav",
+  "86773__juskiddink__gong.wav"
+};
 
-// GUItool: end automatically generated code
+AudioPlayWav *player[fileCnt] = {
+  &playWav1, &playWav2, &playWav3, &playWav4,
+  &playWav5, &playWav6
+};
 
-#define SDCARD_CS_PIN    BUILTIN_SDCARD
-#define SDCARD_MOSI_PIN  11  // not actually used
-#define SDCARD_SCK_PIN   13  // not actually used
-
-
-extern uint32_t _AudioPlaySdWavInstances;
+File file[fileCnt];
 
 void setup() {
   Serial.begin(9600);
-  AudioMemory(20);
-  // Comment these out if not using the audio adaptor board.
-  // This may wait forever if the SDA & SCL pins lack
-  // pullup resistors
-  //sgtl5000_1.enable();
-  //sgtl5000_1.volume(0.5);
+  if (CrashReport) {
+    Serial.println(CrashReport);
+    CrashReport.clear();
+  }
 
-  Serial.println("LittleFS Test"); delay(5);
+  AudioMemory(20);
+  Serial.println("LittleFS Test");
   if (!myfs.begin()) {
-  //if (!myfs.begin(chipSelect)) {
     Serial.println("Error starting qspidisk");
     while (1) ;
   }
-
-
   Serial.printf("TotalSize (Bytes): %d\n", myfs.totalSize());
-  //myfs.deviceErase();
 
-  delay(1000);
-  Serial.println("started");
   printDirectory();
 
-
-  //SPI.setMOSI(SDCARD_MOSI_PIN);
-  //SPI.setSCK(SDCARD_SCK_PIN);
-  //if (!(SD.begin(SDCARD_CS_PIN))) {
-    // stop here, but print a message repetitively
-  //  while (1) {
-  //    Serial.println("Unable to access the SD card");
-  //    delay(500);
-  //  }
-  //}
-}
-
-void playFile(const char *filename)
-{
-  Serial.print("Playing file: ");
-  Serial.println(filename);
-
-  // Start playing the file.  This sketch continues to
-  // run while the file plays.
-  File ccc = myfs.open(filename);  ///Change to play off QSPI flash
-  playSdWav1.play(ccc);
-
-  // Simply wait for the file to finish playing.
-  while (playSdWav1.isPlaying()) {
+  const float gain = 1.0f / 4;
+  for (int i = 0; i < 4; i++) {
+    mixer1.gain(i, gain);
+    mixer2.gain(i, gain);
   }
+
+  //Open all files in paused mode, autorewind
+  for (int i = 0; i < fileCnt; i++)
+  {
+    file[i] = myfs.open(filename[i]);
+    if (!file[i])
+    {
+      Serial.printf("Could not open \"%s\"\n", filename[i]);
+      while (1);
+    }
+    if (!player[i]->play(file[i], true, true))
+    {
+      Serial.printf("Could not start \"%s\"\n", filename[i]);
+      while (1);
+    }
+  }
+
+  AudioProcessorUsageMaxReset();
+  AudioMemoryUsageMaxReset();
 }
 
 
 void loop() {
+  static int c = 0;
+  static unsigned long t = millis();
+  unsigned long m;
+  if ( (m = millis()) - t > 200 )
+  {
+    t = m;
 
-  playFile("Nums_7dot1_16_44100.wav");
-  delay(500);
-  //playFile("SDTEST1.WAV");  // filenames are always uppercase 8.3 format
-  //delay(500);
-  //playFile("SDTEST2.WAV");
-  //delay(500);
-  //playFile("SDTEST3.WAV");
-  //delay(500);
-  //playFile("SDTEST4.WAV");
-  //delay(1500);
+    if (player[c]->isPaused())
+    {
+      player[c]->pause(false);
+    }
+
+    Serial.printf("Proc = %0.2f (%0.2f),  Mem = %d (%d)\n",
+                  AudioProcessorUsage(), AudioProcessorUsageMax(),
+                  AudioMemoryUsage(), AudioMemoryUsageMax());
+
+    AudioProcessorUsageMaxReset();
+    AudioMemoryUsageMaxReset();
+
+    if (++c >= fileCnt) c = 0;
+  }
+
 }
 
 void printDirectory() {
-
   Serial.println("printDirectory\n--------------");
   printDirectory(myfs.open("/"), 0);
   Serial.println();
@@ -131,7 +139,7 @@ void printDirectory(File dir, int numTabs) {
     File entry =  dir.openNextFile();
     if (! entry) {
       // no more files
-      Serial.printf("\n %u dirs with %u files of Size %u Bytes\n", dCnt, fCnt, fSize);
+      //Serial.printf("\n %u dirs with %u files of Size %u Bytes\n", dCnt, fCnt, fSize);
       fTot += fCnt;
       totSize1 += fSize;
       break;

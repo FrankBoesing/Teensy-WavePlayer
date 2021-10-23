@@ -37,8 +37,9 @@ An updated `index.html` file is supplied which documents the key API calls provi
 
 ---
 ## Main functions
-#### play(File | filename [,paused])
+#### play(File | filename [,paused] [,autorewind])
 Plays the `File` object or named file; setting the optional `paused` parameter to `true` allocates and pre-loads the buffer, but does not start playing. Buffer memory is allocated when this function is called, with the amount dependent on the number of audio channels provided in the file.
+If `autorewind` is `true`, it does not stop and close the file - instead it sets the state to `paused` and sets the first sample as new position.
 #### bool pause(bool)
 Starts a paused object if the parameter is `true`, or pauses it if `false`. Returns new state.
 #### stop()
@@ -53,6 +54,15 @@ Return true (non-zero) if paused, or false (zero) when playing or stopped.
 While playing, return the current time offset, in milliseconds.  When not playing, the return from this function is undefined.
 #### lengthMillis()
 Return the total length of the current sound clip,in milliseconds. When not playing, the return from this function is undefined.
+#### setPosition(sample)
+Works in paused mode only. Sets the position to `sample`.
+#### loop(bool)
+If `true`, it repeats the whole file, endless. If set to `false` later, the looping stops and the file plays to the end.
+#### loop(firstSample, lastSample, count)
+When `lastSample` is reached, it rewinds back to `firstSample`. `Count` is the number of repetitions.
+The loops can be stopped by using `count = 0` or calling `loop(false)`
+#### unsigned int loopCount(void)
+Returns the number of remaining loops.
 #### lasterr()
 If an internal error occurs, for example during a call to `play()` or within the audio update loop interrupt, this function will return the most recent error code. Possible values are:
 - 0: no error
