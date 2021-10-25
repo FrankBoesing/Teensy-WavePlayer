@@ -342,7 +342,7 @@ bool AudioBaseWav::isRunning(void)
 
 bool AudioBaseWav::togglePause(void)
 {
-  APW_STATE = state;
+  APW_STATE s = state;
 	if (s != STATE_STOP)
 		pause(s == STATE_RUNNING);
 	return isRunning();
