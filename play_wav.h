@@ -19,8 +19,7 @@ Known problem: Does not work when used as "dynamic audio object".
 #include <AudioStream.h>
 #include <SD.h>
 
-const int _AudioPlayWav_MaxChannels = 16;
-const int _AudioRecordWav_MaxChannels = 8;
+const int _AudioRecordWav_MaxChannels = 4;
 
 enum APW_FORMAT { APW_8BIT_UNSIGNED = 0, APW_8BIT_SIGNED, APW_ULAW,
                   APW_16BIT_SIGNED, APW_16BIT_SIGNED_BIGENDIAN,
@@ -157,7 +156,6 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     bool readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState );
 		void stopFromUpdate(void);
 		size_t dataReader(int8_t *buffer, int len);
-    audio_block_t *queue[_AudioPlayWav_MaxChannels];
     _tEncoderDecoder decoder;
     size_t total_length;      			// number of audio data bytes in file
 		size_t firstSampleOffset;		    // file position of first sample

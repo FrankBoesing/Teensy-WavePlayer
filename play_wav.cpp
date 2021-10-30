@@ -960,7 +960,7 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   else
     return false; //unknown format
 
-  if (channels == 0 || channels > _AudioPlayWav_MaxChannels) return false;
+  if (channels == 0) return false;
   if (dataFmt == APW_NONE) return false;
   if (sample_rate == 0) sample_rate = AUDIO_SAMPLE_RATE_EXACT;
 
@@ -1231,25 +1231,27 @@ void AudioPlayWav::update(void)
   } else last = false;
 
   // allocate the audio blocks to transmit
-  auto chan = 0;
+	audio_block_t *queue[channels];
+  auto chan = channels;
   do {
+		chan--;
     queue[chan] = AudioStream::allocate();
     if ( unlikely(queue[chan] == nullptr) )
     {
-      for (auto i = 0; i != chan; ++i)
-        AudioStream::release(queue[i]);
+			while(chan < channels)
+				AudioStream::release(queue[chan++]);
       last_err = ERR_NO_AUDIOBLOCKS;
       LOGE("Waveplayer stopped: Not enough AudioMemory().");
       stop();
       return;
     }
-  } while (++chan < channels);
+  } while (chan);
 
   // copy the samples to the audio blocks:
   buffer_rd += decoder(&buffer[buffer_rd], queue, channels);
 
   // transmit them:
-  chan = 0;
+  /* chan = 0; */
   do
   {
     AudioStream::transmit(queue[chan], chan);
