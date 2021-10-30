@@ -237,7 +237,7 @@ bool apwFile::truncate(void)
   return b;
 }
 
-INLINE size_t apwFile::read(void *buf, size_t nbyte)
+ size_t apwFile::read(void *buf, size_t nbyte)
 {
   bool irq = stopInt();
   size_t r = readInISR(buf, nbyte);
@@ -262,7 +262,7 @@ INLINE size_t apwFile::readInISR(void *buf, size_t nbyte)
 	return r;
 }
 
-INLINE size_t apwFile::write(void *buf, size_t nbyte)
+size_t apwFile::write(void *buf, size_t nbyte)
 {
   bool irq = stopInt();
   size_t r = writeInISR(buf, nbyte);
@@ -312,6 +312,7 @@ AudioBaseWav::~AudioBaseWav(void)
   freeBuffer();
 }
 
+FLASHMEM
 void AudioBaseWav::reset(void)
 {
   state = STATE_STOP;
@@ -335,9 +336,7 @@ bool AudioBaseWav::isStopped(void) {
 bool AudioBaseWav::isRunning(void)
 {
 	asm("":::"memory");
-  bool running = state == STATE_RUNNING;
-	//LOGV("isRunning()? -> %d", running);
-  return running;
+  return (state == STATE_RUNNING);
 }
 
 bool AudioBaseWav::togglePause(void)
@@ -345,7 +344,7 @@ bool AudioBaseWav::togglePause(void)
   APW_STATE s = state;
 	if (s != STATE_STOP)
 		pause(s == STATE_RUNNING);
-	return isRunning();
+	return isPaused();
 }
 
 bool AudioBaseWav::addMemory(size_t mult)
@@ -357,20 +356,39 @@ bool AudioBaseWav::addMemory(size_t mult)
   return true;
 }
 
-//----------------------------------------------------------------------------------------------------
-bool AudioBaseWav::createBuffer() //!< allocate the buffer
+
+size_t AudioBaseWav::calcBufferIdx(void)
+{
+ auto idx = (my_instance + ((_instances - 1) - updateStep)) % _instances;
+ idx *= AUDIO_BLOCK_SAMPLES * channels * bytes /* * _sz_mem_additional */;
+ return idx;
+}
+
+FLASHMEM
+bool AudioBaseWav::createBuffer(void)
 {
 
-  LOGV("malloc() 0x%x bytes", sz_mem);
+	sz_mem = _instances * AUDIO_BLOCK_SAMPLES * channels * bytes * _sz_mem_additional;
+
+	if (wavfile.isSD()) {
+		size_t m = MIN_BUFFER_SIZE / sz_mem;
+		if (m > 1 ) sz_mem *= m;
+	}
+
+	LOGV("malloc() 0x%x bytes", sz_mem);
 
   buffer = (int8_t*)malloc(sz_mem);
-  if (!buffer) {
+
+  if (buffer == nullptr) {
     sz_mem = 0;
     last_err = ERR_OUT_OF_MEMORY;
     LOGE("Out of Memory");
+		return false;
   }
-  return buffer != nullptr;
+
+  return true;
 }
+
 
 void AudioBaseWav::freeBuffer(void)
 {
@@ -388,7 +406,7 @@ void AudioBaseWav::freeBuffer(void)
 //----------------------------------------------------------------------------------------------------
 // 8 bit unsigned:
 HOT static
-size_t decode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
+size_t decode_8bit(int8_t buffer[], audio_block_t *queue[], uint8_t channels)
 {
   int8_t *p = buffer;
 
@@ -413,7 +431,7 @@ size_t decode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int c
 
     default:
       do {
-        unsigned int chan = 0;
+        auto chan = 0;
         do {
           queue[chan]->data[i] = ( *p++ - 128 ) << 8;
         } while (++chan < channels);
@@ -425,13 +443,13 @@ size_t decode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int c
 
 // 8 bit signed:
 HOT static
-size_t decode_8bit_signed(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
+size_t decode_8bit_signed(int8_t buffer[], audio_block_t *queue[], uint8_t channels)
 {
   int8_t *p = buffer;
 
   size_t i = 0;
   do {
-    unsigned int chan = 0;
+    auto chan = 0;
     do {
       queue[chan]->data[i] = (*p++) << 8;
     } while (++chan < channels);
@@ -478,7 +496,7 @@ const static short ulaw_decode[256] = {
 
 // 8 bit ulaw:
 HOT static
-size_t decode_8bit_ulaw(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
+size_t decode_8bit_ulaw(int8_t buffer[], audio_block_t *queue[], uint8_t channels)
 {
   uint8_t *p = (uint8_t*)buffer;
 
@@ -500,7 +518,7 @@ size_t decode_8bit_ulaw(int8_t buffer[], audio_block_t *queue[], const unsigned 
 
     default:
       do {
-        unsigned int chan = 0;
+        auto chan = 0;
         do {
           queue[chan]->data[i] = ulaw_decode[*p++];
         } while (++chan < channels);
@@ -511,7 +529,7 @@ size_t decode_8bit_ulaw(int8_t buffer[], audio_block_t *queue[], const unsigned 
 
 // 16 bit:
 HOT static
-size_t decode_16bit(int8_t buffer[],  audio_block_t *queue[], const unsigned int channels)
+size_t decode_16bit(int8_t buffer[],  audio_block_t *queue[], uint8_t channels)
 {
   switch (channels)
   {
@@ -533,7 +551,7 @@ size_t decode_16bit(int8_t buffer[],  audio_block_t *queue[], const unsigned int
         size_t i = 0;
         int16_t *p = (int16_t*) buffer;
         do {
-          unsigned int chan = 0;
+          auto chan = 0;
           do {
             queue[chan]->data[i] = *p++;
           } while (++chan < channels);
@@ -546,13 +564,13 @@ size_t decode_16bit(int8_t buffer[],  audio_block_t *queue[], const unsigned int
 // 16 bit big endian:
 
 HOT static
-size_t decode_16bit_bigendian(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
+size_t decode_16bit_bigendian(int8_t buffer[], audio_block_t *queue[], uint8_t channels)
 {
 
   int16_t *p = (int16_t*) buffer;
   size_t i = 0;
   do {
-    unsigned int chan = 0;
+    auto chan = 0;
     do {
       queue[chan]->data[i] = __builtin_bswap16(*p++);
     } while (++chan < channels);
@@ -563,14 +581,14 @@ size_t decode_16bit_bigendian(int8_t buffer[], audio_block_t *queue[], const uns
 
 // 24 bit:
 HOT static
-size_t decode_24bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
+size_t decode_24bit(int8_t buffer[], audio_block_t *queue[], uint8_t channels)
 {
   //TODO: Optimize
 	size_t i = 0;
 	uint8_t *p = (uint8_t*) buffer;
 	p++;
 	do {
-		unsigned int chan = 0;
+		auto chan = 0;
 		uint16_t sample;
 		do {
 			sample = *(uint16_t*)p; //note, this involves unaligned reads.
@@ -774,10 +792,12 @@ typedef struct {
   unsigned long compressionType;
 } PACKED taifcCommonChunk;
 
+
 COLD
 bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState)
 {
-  size_t sz_frame, rd;
+
+  size_t rd;
   tFileHeader fileHeader;
   tDataHeader dataHeader;
 
@@ -953,8 +973,6 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
        round( msPerSample * total_length / (bytes * channels) )
       );
 
-  sz_frame = AUDIO_BLOCK_SAMPLES * channels * bytes;
-
 	size_t wfp = wavfile.position();
 	size_t wfz = wavfile.size();
 
@@ -964,16 +982,11 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   firstSampleOffset = wfp;
 	lastSample = firstSampleOffset + total_length;
 
-  //calculate the needed buffer memory:
-  sz_mem = _instances * sz_frame;
-  sz_mem *= _sz_mem_additional;
-	if (wavfile.isSD())
-		while (sz_mem < MIN_BUFFER_SIZE) sz_mem *=2;
   if (!createBuffer()) return false;
+  buffer_rd = sz_mem;
 
   LOGD("Start with state \"%s\".", stateStr[newState]);
 
-  buffer_rd = sz_mem;
 	if (newState == STATE_RUNNING) start();
 	else state = STATE_PAUSED;
 
@@ -1110,16 +1123,13 @@ size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
 COLD
 void AudioPlayWav::start(void)
 {
-	size_t len, x, buffer_rd_old;
+	size_t len, buffer_rd_old;
 
 	LOGV("Play: Pause -> RUN");
   bool irq = stopInt();
 
-  x = (my_instance + ((_instances - 1) - updateStep)) % _instances;
-
-  LOGV("Inst:%d ustep:%d = %d", my_instance, updateStep, x);
 	buffer_rd_old = buffer_rd;
-  buffer_rd = sz_mem - x * AUDIO_BLOCK_SAMPLES * channels * bytes;
+  buffer_rd = sz_mem - calcBufferIdx();
 
 	// pre-load according to instance number and update step
 
@@ -1204,7 +1214,6 @@ void AudioPlayWav::update(void)
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
 
-  uint8_t chan;
   bool last;
 
   if (buffer_rd >= sz_mem) buffer_rd = 0;
@@ -1222,12 +1231,12 @@ void AudioPlayWav::update(void)
   } else last = false;
 
   // allocate the audio blocks to transmit
-  chan = 0;
+  auto chan = 0;
   do {
     queue[chan] = AudioStream::allocate();
     if ( unlikely(queue[chan] == nullptr) )
     {
-      for (unsigned int i = 0; i != chan; ++i)
+      for (auto i = 0; i != chan; ++i)
         AudioStream::release(queue[i]);
       last_err = ERR_NO_AUDIOBLOCKS;
       LOGE("Waveplayer stopped: Not enough AudioMemory().");
@@ -1314,7 +1323,7 @@ typedef struct {
 
 // 8 bit unsigned:
 HOT static
-size_t encode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
+size_t encode_8bit(int8_t buffer[], audio_block_t *queue[], uint8_t channels)
 {
   int8_t *p = buffer;
   size_t i = 0;
@@ -1338,7 +1347,7 @@ size_t encode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int c
 
     default:
       do {
-        unsigned int chan = 0;
+        auto chan = 0;
         do {
           *p++ = (queue[chan]->data[i] >> 8) + 128;
         } while (++chan < channels);
@@ -1348,7 +1357,7 @@ size_t encode_8bit(int8_t buffer[], audio_block_t *queue[], const unsigned int c
 }
 // 16 bit:
 HOT static
-size_t encode_16bit(int8_t buffer[], audio_block_t *queue[], const unsigned int channels)
+size_t encode_16bit(int8_t buffer[], audio_block_t *queue[], uint8_t channels)
 {
   size_t i = 0;
   switch (channels)
@@ -1371,7 +1380,7 @@ size_t encode_16bit(int8_t buffer[], audio_block_t *queue[], const unsigned int 
       {
         int16_t *p = (int16_t*) buffer;
         do {
-          unsigned int chan = 0;
+          auto chan = 0;
           do {
             *p++ = queue[chan]->data[i];
           } while (++chan < channels);
@@ -1607,26 +1616,17 @@ bool AudioRecordWav::start( APW_FORMAT fmt, unsigned int numchannels, bool pause
     return false;
   }
 
-  size_t sz_frame = AUDIO_BLOCK_SAMPLES * channels * bytes;
-
-  //calculate the needed buffer memory:
-  sz_mem = _instances * sz_frame;
-  sz_mem *= _sz_mem_additional;
-	if (wavfile.isSD())
-		while (sz_mem < MIN_BUFFER_SIZE) sz_mem *=2;
   if (!createBuffer()) return false;
 
   bool irq = stopInt();
 
-  size_t x = (my_instance + ((_instances - 1) - updateStep)) % _instances;
-  buffer_wr = sz_mem - x * AUDIO_BLOCK_SAMPLES * channels * bytes;
+  buffer_wr = sz_mem - calcBufferIdx();
   if (buffer_wr >= sz_mem) buffer_wr = 0;
   buffer_wr_start = buffer_wr;
 
   state = paused ? STATE_PAUSED : STATE_RUNNING;
   startInt(irq);
 
-	LOGV("Inst:%d ustep:%d = %d LEN: 0x%x\n", my_instance, updateStep, x, sz_mem - buffer_wr);
   return true;
 }
 
@@ -1636,8 +1636,7 @@ void  AudioRecordWav::update(void)
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
 
-  uint8_t chan;
-  chan = 0;
+  auto chan = 0;
 	audio_block_t *qcopy[channels];
   do
   {

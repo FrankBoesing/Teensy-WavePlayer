@@ -19,8 +19,8 @@ Known problem: Does not work when used as "dynamic audio object".
 #include <AudioStream.h>
 #include <SD.h>
 
-const int _AudioPlayWav_MaxChannels = 8;
-const int _AudioRecordWav_MaxChannels = 4;
+const int _AudioPlayWav_MaxChannels = 16;
+const int _AudioRecordWav_MaxChannels = 8;
 
 enum APW_FORMAT { APW_8BIT_UNSIGNED = 0, APW_8BIT_SIGNED, APW_ULAW,
                   APW_16BIT_SIGNED, APW_16BIT_SIGNED_BIGENDIAN,
@@ -91,16 +91,18 @@ class AudioBaseWav
     uint32_t sampleRate(void) {return sample_rate;}
     uint8_t lastErr(void) {return (int)last_err;}
 
-    static uint8_t _instances;
-    static uint8_t _sz_mem_additional;
-
   private:
     friend class AudioPlayWav;
     friend class AudioRecordWav;
 
     AudioBaseWav(void);
     ~AudioBaseWav(void);
+
+    static uint8_t _instances;
+    static uint8_t _sz_mem_additional;
+
     void reset(void);
+		size_t calcBufferIdx(void);
     bool createBuffer(void);
     void freeBuffer(void);
     void close(bool closeFile = true);
@@ -125,7 +127,7 @@ class AudioBaseWav
 
 /*********************************************************************************************************/
 
-typedef size_t (*_tEncoderDecoder)(int8_t [], audio_block_t *[], unsigned int);
+typedef size_t (*_tEncoderDecoder)(int8_t [], audio_block_t *[], uint8_t);
 
 class AudioPlayWav : public AudioBaseWav, public AudioStream
 {
@@ -150,7 +152,7 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
 		int loopCount(void);
     uint32_t lengthMillis(void);
     uint32_t channelMask(void) {return channelmask;}
-  protected:
+  private:
     bool _play(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, bool paused, bool autorewind );
     bool readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t number_of_channels, APW_STATE newState );
 		void stopFromUpdate(void);
@@ -164,7 +166,7 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     uint32_t channelmask;           // dwChannelMask
 		uint16_t _loopCount;
 		bool autorewind;
-  //private:
+
 		void start(void);
     virtual void update(void);
 		size_t buffer_rd;
@@ -189,7 +191,7 @@ class AudioRecordWav : public AudioBaseWav, public AudioStream
     bool addMemoryForWrite(size_t mult) {return addMemory(mult);} // add memory
     bool toggleRecordPause(void) {return togglePause();}
     bool pause(const bool pause);
-  protected:
+  private:
     virtual void update(void);
     bool start( APW_FORMAT fmt, unsigned int channels, bool paused = false );
     _tEncoderDecoder encoder;
