@@ -38,19 +38,11 @@
 #ifdef INLINE
 #undef INLINE
 #endif
-#ifdef likely
-#undef likely
-#endif
-#ifdef unlikely
-#undef unlikely
-#endif
 
 #define HOT __attribute__((hot))
-#define COLD __attribute__((/*cold,*/ optimize("Os"), noinline, noclone))
+#define COLD __attribute__((cold, noinline))
 #define PACKED __attribute__((packed))
 #define INLINE inline __attribute__((always_inline))
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
 
 #if defined(DEBUG_PIN_PLAYWAV)
 #define DBGPIN_HIGH	do {digitalWriteFast(DEBUG_PIN_PLAYWAV, HIGH);} while(0)
@@ -97,7 +89,7 @@ INLINE bool stopInt()
   __disable_irq();
   return (primask == 0) ? true : false;
 #else
-  if ( likely(NVIC_IS_ENABLED(IRQ_SOFTWARE)) )
+  if ( NVIC_IS_ENABLED(IRQ_SOFTWARE) )
   {
     NVIC_DISABLE_IRQ(IRQ_SOFTWARE);
 		asm("":::"memory");
@@ -111,9 +103,9 @@ INLINE void startInt(bool enabled)
 {
 	asm("":::"memory");
 #if defined(STOP_ALL_ISRS)
-  if (likely(enabled)) __enable_irq();
+  if (enabled) __enable_irq();
 #else
-  if (likely(enabled))
+  if (enabled)
     NVIC_ENABLE_IRQ(IRQ_SOFTWARE);
 #endif
 
@@ -250,7 +242,7 @@ INLINE size_t apwFile::readInISR(void *buf, size_t nbyte)
 	size_t r;
 	DBGPIN_HIGH;
 
-  if (likely(fileType == APW_FILE_SD))
+  if (fileType == APW_FILE_SD)
 		r = sdFile.read(buf, nbyte);
   else
 		r = file.read(buf, nbyte);
@@ -274,7 +266,7 @@ INLINE size_t apwFile::writeInISR(void *buf, size_t nbyte)
 {
 	size_t r;
 	DBGPIN_HIGH;
-  if (likely(fileType == APW_FILE_SD))
+  if (fileType == APW_FILE_SD)
 		r = sdFile.write(buf, nbyte);
 	else
 		r = file.write(buf, nbyte);
@@ -392,7 +384,7 @@ bool AudioBaseWav::createBuffer(void)
 
 void AudioBaseWav::freeBuffer(void)
 {
-  if (likely(buffer)) {
+  if (buffer) {
     free(buffer);
     LOGV("free() 0x%x bytes", sz_mem);
   }
@@ -515,7 +507,6 @@ size_t decode_8bit_ulaw(int8_t buffer[], audio_block_t *queue[], uint8_t channel
         queue[1]->data[i] = ulaw_decode[*p++];
       } while (++i < AUDIO_BLOCK_SAMPLES);
       return AUDIO_BLOCK_SAMPLES * 2;
-
     default:
       do {
         auto chan = 0;
@@ -893,8 +884,8 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
     if (!SSNDread || !COMMread) return false;
 
   }  // AIFF
-  else if ( likely(fileHeader.id == cRIFF &&
-                   fileHeader.riffType == cWAVE) )
+  else if ( fileHeader.id == cRIFF &&
+                   fileHeader.riffType == cWAVE )
   {
     // ---------- WAV ----------------------------
     LOGV("Format: WAV");
@@ -1085,7 +1076,7 @@ size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
 	if (_loopCount > 0)
 	{
 		size_t pos = wavfile.position();
-		if (unlikely(pos + len > loopLast))
+		if (pos + len > loopLast)
 		{
 			_loopCount--;
 			LOGD("LoopCount: %d", _loopCount);
@@ -1111,7 +1102,7 @@ size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
 
   // here would be right place to add playing backwards, up-/downsampling etc ....
 
-	if (unlikely(rd < len))
+	if ( rd < len )
 	{
 		LOGV("EOF: 0x%x Bytes read, needed: 0x%x -> fill 0x%x with 0x%x", rd, len, len - rd, padding);
 		memset(buffer + rd, padding, len - rd);
@@ -1221,7 +1212,7 @@ void AudioPlayWav::update(void)
   {
     size_t len = sz_mem - buffer_rd;
 		size_t rd = dataReader(&buffer[buffer_rd], len);
-		if (unlikely(rd == 0)) {
+		if (rd == 0) {
 			stopFromUpdate();
 			return;
 		}
@@ -1231,18 +1222,21 @@ void AudioPlayWav::update(void)
 
   // allocate the audio blocks to transmit
 	auto chan = channels;
-	audio_block_t *queue[chan];
+	audio_block_t *queue[channels];
   do {
-    queue[--chan] = AudioStream::allocate();
-    if ( unlikely(queue[chan] == nullptr) )
-    {
-			while(++chan < channels)
-				AudioStream::release(queue[chan]);
-      last_err = ERR_NO_AUDIOBLOCKS;
-      LOGE("Waveplayer stopped: Not enough AudioMemory().");
-      stop();
-      return;
-    }
+		chan--;
+		audio_block_t *p;
+    p = AudioStream::allocate();
+    if ( p == nullptr ) {
+				while(chan < channels)
+					AudioStream::release(queue[chan]);
+				last_err = ERR_NO_AUDIOBLOCKS;
+				LOGE("Waveplayer stopped: Not enough AudioMemory().");
+				stop();
+				return;
+
+		}
+		queue[chan] = p;
   } while (chan > 0);
 
   // copy the samples to the audio blocks:
@@ -1658,11 +1652,11 @@ void  AudioRecordWav::update(void)
   chan = 0;
   do
   {
-    if (likely(queue[chan] != nullptr))
-    {
-      AudioStream::release(queue[chan]);
-      queue[chan] = nullptr; // < why is this needed?
-    }
+    if (queue[chan] == nullptr) continue;
+
+    AudioStream::release(queue[chan]);
+    queue[chan] = nullptr; // < why is this needed?
+
   } while (++chan < channels);
 
 	++data_length;
