@@ -1214,11 +1214,10 @@ void AudioPlayWav::update(void)
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
 
-  bool last;
-
   if (buffer_rd >= sz_mem) buffer_rd = 0;
-  if (updateStep == my_instance &&
-      buffer_rd == 0) //! rmv to dbg interleave
+
+	bool last = false;
+  if (updateStep == my_instance /*&& buffer_rd == 0*/)
   {
     size_t len = sz_mem - buffer_rd;
 		size_t rd = dataReader(&buffer[buffer_rd], len);
@@ -1228,35 +1227,33 @@ void AudioPlayWav::update(void)
 		}
 		last = rd < len;
 		buffer_rd = sz_mem - len;
-  } else last = false;
+  }
 
   // allocate the audio blocks to transmit
-	audio_block_t *queue[channels];
-  auto chan = channels;
+	auto chan = channels;
+	audio_block_t *queue[chan];
   do {
-		chan--;
-    queue[chan] = AudioStream::allocate();
+    queue[--chan] = AudioStream::allocate();
     if ( unlikely(queue[chan] == nullptr) )
     {
-			while(chan < channels)
-				AudioStream::release(queue[chan++]);
+			while(++chan < channels)
+				AudioStream::release(queue[chan]);
       last_err = ERR_NO_AUDIOBLOCKS;
       LOGE("Waveplayer stopped: Not enough AudioMemory().");
       stop();
       return;
     }
-  } while (chan);
+  } while (chan > 0);
 
   // copy the samples to the audio blocks:
   buffer_rd += decoder(&buffer[buffer_rd], queue, channels);
 
   // transmit them:
-  /* chan = 0; */
+	chan = 0;
   do
   {
     AudioStream::transmit(queue[chan], chan);
     AudioStream::release(queue[chan]);
-    //queue[chan] = nullptr;
   } while (++chan < channels);
 
   if (last) stopFromUpdate();
