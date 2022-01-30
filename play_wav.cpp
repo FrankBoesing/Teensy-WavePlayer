@@ -34,9 +34,6 @@
 
 #if !defined(KINETISL)
 
-#define MIN_BUFFER_SIZE 1024 //min bytes to read from file
-
-
 #if defined(LOG_LEVEL)
 //https://github.com/FrankBoesing/TeensyLogger
 #define LOGTIMESTAMP
@@ -385,12 +382,6 @@ bool AudioBaseWav::createBuffer(void)
 {
 
 	sz_mem = _instances * AUDIO_BLOCK_SAMPLES * channels * bytes * _sz_mem_additional;
-
-	if (wavfile.isSD()) {
-		size_t m = MIN_BUFFER_SIZE / sz_mem;
-		if (m > 1 ) sz_mem *= m;
-	}
-
 	LOGV("malloc() 0x%x bytes", sz_mem);
 
   buffer = (int8_t*)malloc(sz_mem);
