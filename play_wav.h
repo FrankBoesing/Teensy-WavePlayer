@@ -139,7 +139,6 @@ class AudioBaseWav
     uint8_t my_instance;          // instance id
     uint8_t bytes;            		// 1 or 2 bytes?
 		uint8_t channels;        			// #of channels in the wave file
-    uint8_t padding;              // value to pad buffer at EOF
     int8_t updateStep = -1;
 
 };
@@ -190,7 +189,7 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
 		size_t buffer_rd;
 };
 /*********************************************************************************************************/
-#if 1
+#if 0
 class AudioRecordWav : public AudioBaseWav, public AudioStream
 {
   public:

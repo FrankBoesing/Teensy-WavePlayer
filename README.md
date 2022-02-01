@@ -12,7 +12,7 @@ with additional stability and functionality.
 - interleaved reads / writes: only one file access on each audio-cycle
 - lastErr() returns last error
 - synchronized start
-- recording (still work in progress - not documented - may not work sometimes)
+
 
 ## Play: Formats
 - n channel 8 bit unsigned *.wav
@@ -83,42 +83,6 @@ In order to play multiple files in exact synchronisation, it is preferable to pr
 - call `pause(false)` for all the objects
 - call `AudioInterrupts()` to allow the audio interrupt to fire: playback will start at the next interrupt
 
-# Recording
-Some hints first:
-- You can record to any file that is supported by Teensyduino - i.e. littlFS etc.
-- IF you want to record to SD, keep this in mind:
-  - The SD Card needs time to update the FAT and to do internal operations like wear levelling. When this will happen is unpredictable. Use a good, fast card. Unfortunately, when you buy a card, no label or logo on the card tells you if it is good for microcontrollers. Id had success with a Kingston GO! Plus 64GB.
-Here is a test of various cards: https://forum.pjrc.com/threads/68418-Which-SD-is-Best-for-Audio-Projects?p=290795&viewfull=1#post290795
-  - Important, increase the AUDIO_BLOCK_SAMPLES to 256 or 512.
-  - In some cases it might be better to record to littlFS in PSRAM, and to copy the recorded file to SD later.
-  - I recommend not to record more than one file at a time. Better is to use one file with more channels, if required.
-  - Don't use SPI. Use a Teensy 4.1 and the inbuilt SD slot.
- 
-
-## Main functions
-#### record(File | filename, format, numChannels, [,paused])
-Plays the `File` object or named file; setting the optional `paused` parameter to `true` allocates and pre-loads the buffer and pre-allocates the file, but does not start recording. Buffer memory is allocated when this function is called, with the amount dependent on the number of audio channels.
-NumChannels is the number of recorded channels (i.e. 1 for mono, 2 for stereo etc).
-Currently, two formats are supported: `APW_8BIT_UNSIGNED` and `APW_16BIT_SIGNED`
-
-Examples: 
-- `record('test.wav', APW_16BIT_SIGNED, 2)` starts recording a 16Bit stereo file to SD.
-- `record('test.wav', APW_8BIT_UNSIGNED, 1, paused)` prepares (preallocates file, write dummy wave-header, etc)  the recording of a 8Bit mono file. 
-
-#### bool pause(bool)
-Like above for playing. The wave-file header is written.
-#### stop()
-Like above for playing. The wave-file header is written.
-#### isRecording().
-Return true (non-zero) if recording, or false (zero) when stopped or paused.  
-#### isStopped()
-like above for playing
-#### isPaused()
-like above for playing
-#### lengthMillis()
-Return the total length of the current sound clip,in milliseconds. When not playing, the return from this function is undefined.
-#### lasterr()
-Like above for playing
 
 ---
 Example wave files taken from here:

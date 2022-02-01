@@ -978,7 +978,6 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   last_err = ERR_OK;
   bytes = bytesPerSample[dataFmt];
   decoder = decoders[dataFmt];
-  padding = (dataFmt == APW_8BIT_UNSIGNED) ? 0x80 : 0x00;
   LOGV("SampleRate: %d, Channels: %d, Bytes: %d, Length: %dms",
        sample_rate, channels, bytes,
        round( msPerSample * total_length / (bytes * channels) )
@@ -1118,6 +1117,7 @@ size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
 
 	if ( rd < len )
 	{
+		uint8_t padding = (dataFmt == APW_8BIT_UNSIGNED) ? 0x80 : 0x00;
 		LOGV("EOF: 0x%x Bytes read, needed: 0x%x -> fill 0x%x with 0x%x", rd, len, len - rd, padding);
 		memset(buffer + rd, padding, len - rd);
 	}
@@ -1318,6 +1318,8 @@ typedef struct {
 
 //----------------------------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------------------------
+#if 0
+
 #pragma GCC push_options
 #pragma GCC optimize ("unroll-loops")
 
@@ -1398,7 +1400,6 @@ static const _tEncoderDecoder encoders[numDecoders] = {
 
 #pragma GCC pop_options
 //----------------------------------------------------------------------------------------------------
-#if 1
 
 void AudioRecordWav::stop()
 {
