@@ -844,7 +844,7 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
     bool isAIFC = fileHeader.riffType == cAIFC;
     LOGV("Format: %s", isAIFC ? "AIFC" : "AIFF");
     bool COMMread = false;
-    bool SSNDread = false;
+		size_t startpos = 0;
     uint8_t bytes;
 
     do {
@@ -882,21 +882,26 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
             dataFmt = APW_8BIT_SIGNED;
         } else return false;
 
-        COMMread = true;
-        if (SSNDread) break;
+        if (startpos) {
+					wavfile.seek(startpos);
+					break;
+				}
+				COMMread = true;
 
       } else if (dataHeader.chunkID == cSSND) {
-        //todo: offset etc...
-
-        SSNDread = true;
-        if (COMMread) break;
-      } ;
+        //todo: offset etc... (error if != 0)
+				startpos = position + sizeof(dataHeader) + 8;
+        if (COMMread) {
+					wavfile.seek(startpos);
+					break;
+				}
+      };
 
       position += sizeof(dataHeader) + dataHeader.chunkSize ;
       if (position & 1) position++; //make position even
     } while (true);
 
-    if (!SSNDread || !COMMread) return false;
+    if (startpos==0 || !COMMread) return false;
 
   }  // AIFF
   else if ( fileHeader.id == cRIFF &&
@@ -979,17 +984,11 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
        round( msPerSample * total_length / (bytes * channels) )
       );
 
-	size_t wfp = wavfile.position();
-	size_t wfz = wavfile.size();
-
-	//the total_length may be wrong. try to adjust it.
-	if (total_length > wfz - wfp) total_length = wfz - wfp;
-
-  firstSampleOffset = wfp;
+  firstSampleOffset = wavfile.position();
 	lastSample = firstSampleOffset + total_length;
 
   if (!createBuffer()) return false;
-  buffer_rd = sz_mem;
+  buffer_rd = sz_mem; //for start(), indicate that we have no data
 
   LOGD("Start with state \"%s\".", stateStr[newState]);
 
@@ -1220,19 +1219,14 @@ void AudioPlayWav::update(void)
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
 
-  if (buffer_rd >= sz_mem) buffer_rd = 0;
-
-	bool last = false;
-  if (updateStep == my_instance /*&& buffer_rd == 0*/)
+  if (buffer_rd >= sz_mem)
   {
-    size_t len = sz_mem - buffer_rd;
-		size_t rd = dataReader(&buffer[buffer_rd], len);
+		buffer_rd = 0;
+		size_t rd = dataReader(buffer, sz_mem);
 		if (rd == 0) {
 			stopFromUpdate();
 			return;
 		}
-		last = rd < len;
-		buffer_rd = sz_mem - len;
   }
 
   // allocate the audio blocks to transmit
@@ -1264,8 +1258,6 @@ void AudioPlayWav::update(void)
     AudioStream::transmit(queue[chan], chan);
     AudioStream::release(queue[chan]);
   } while (++chan < channels);
-
-  if (last) stopFromUpdate();
 
 }
 
