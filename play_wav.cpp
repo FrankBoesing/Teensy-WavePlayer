@@ -1115,11 +1115,19 @@ size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
 
   // here would be right place to add playing backwards, up-/downsampling etc ....
 
-	if ( rd < len )
+	if ( rd < len) //EOF
 	{
-		uint8_t padding = (dataFmt == APW_8BIT_UNSIGNED) ? 0x80 : 0x00;
-		LOGV("EOF: 0x%x Bytes read, needed: 0x%x -> fill 0x%x with 0x%x", rd, len, len - rd, padding);
-		memset(buffer + rd, padding, len - rd);
+		if (rd > 0) {
+			size_t blocksz = channels * bytes * AUDIO_BLOCK_SAMPLES;
+			size_t numblocks = rd / blocksz + 1;
+			size_t addr = len - numblocks * blocksz;
+			LOGV("EOF: 0x%x Bytes read, wanted: 0x%x. One block is: 0x%x -> move read data to 0x%x (%u blocks) and fill remaining space of 0x%x\n",
+					rd, len, blocksz, addr,  numblocks, len - rd - addr);
+			if (addr > 0)
+				memmove(buffer + addr, buffer, rd);
+			memset(buffer + addr + rd, (dataFmt == APW_8BIT_UNSIGNED) ? 0x80 : 0x00, len - (addr + rd) );
+			buffer_rd = addr;
+		}
 	}
 
 	return rd;
@@ -1139,9 +1147,8 @@ void AudioPlayWav::start(void)
 	// pre-load according to instance number and update step
 
 	if (buffer_rd < sz_mem) //Do we need to read data?
-	{
+	{ // we need some data!
 		len = sz_mem - buffer_rd;
-		// we need some data!
 		// 1. are there remaining data in the buffer? (maybe we had paused?)
 		if (buffer_rd_old == sz_mem)
 			goto readData; // Nope!
@@ -1215,6 +1222,7 @@ void AudioPlayWav::stopFromUpdate(void)
 HOT
 void AudioPlayWav::update(void)
 {
+  size_t rd;
 
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
@@ -1222,7 +1230,7 @@ void AudioPlayWav::update(void)
   if (buffer_rd >= sz_mem)
   {
 		buffer_rd = 0;
-		size_t rd = dataReader(buffer, sz_mem);
+		rd = dataReader(buffer, sz_mem);
 		if (rd == 0) {
 			stopFromUpdate();
 			return;
@@ -1259,6 +1267,7 @@ void AudioPlayWav::update(void)
     AudioStream::release(queue[chan]);
   } while (++chan < channels);
 
+	if (rd < sz_mem && buffer_rd >= sz_mem) stopFromUpdate();
 }
 
 size_t AudioPlayWav::position()
