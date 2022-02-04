@@ -990,6 +990,7 @@ bool AudioPlayWav::readHeader(APW_FORMAT fmt, uint32_t sampleRate, uint8_t numbe
   buffer_rd = sz_mem; //for start(), indicate that we have no data
 
   LOGD("Start with state \"%s\".", stateStr[newState]);
+	last = false;
 
 	if (newState == STATE_RUNNING) start();
 	else state = STATE_PAUSED;
@@ -1104,6 +1105,7 @@ size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
 		  else
 				rd = 0;
 
+			last = false;
 			wavfile.seek(loopFirst);
 			LOGV("Loop-3: pos: 0x%x read: 0x%x ", loopFirst, len - rd);
 			rd += wavfile.readInISR(buffer + rd, len - rd);
@@ -1121,14 +1123,15 @@ size_t AudioPlayWav::dataReader(int8_t *buffer, int len)
 			size_t blocksz = channels * bytes * AUDIO_BLOCK_SAMPLES;
 			size_t numblocks = rd / blocksz + 1;
 			size_t addr = len - numblocks * blocksz;
-			LOGV("EOF: 0x%x Bytes read, wanted: 0x%x. One block is: 0x%x -> move read data to 0x%x (%u blocks) and fill remaining space of 0x%x\n",
+			LOGV("EOF: 0x%x Bytes read, wanted: 0x%x. One block is: 0x%x -> move read data to 0x%x (%u blocks) and fill remaining space of 0x%x",
 					rd, len, blocksz, addr,  numblocks, len - rd - addr);
 			if (addr > 0)
 				memmove(buffer + addr, buffer, rd);
 			memset(buffer + addr + rd, (dataFmt == APW_8BIT_UNSIGNED) ? 0x80 : 0x00, len - (addr + rd) );
 			buffer_rd = addr;
 		}
-	}
+		last = true;
+	} else last = false;
 
 	return rd;
 }
@@ -1222,7 +1225,6 @@ void AudioPlayWav::stopFromUpdate(void)
 HOT
 void AudioPlayWav::update(void)
 {
-  size_t rd;
 
   if (++updateStep >= _instances) updateStep = 0;
   if (state != STATE_RUNNING) return;
@@ -1230,7 +1232,7 @@ void AudioPlayWav::update(void)
   if (buffer_rd >= sz_mem)
   {
 		buffer_rd = 0;
-		rd = dataReader(buffer, sz_mem);
+		size_t rd = dataReader(buffer, sz_mem);
 		if (rd == 0) {
 			stopFromUpdate();
 			return;
@@ -1267,7 +1269,8 @@ void AudioPlayWav::update(void)
     AudioStream::release(queue[chan]);
   } while (++chan < channels);
 
-	if (rd < sz_mem && buffer_rd >= sz_mem) stopFromUpdate();
+	if (last && buffer_rd >= sz_mem) stopFromUpdate();
+
 }
 
 size_t AudioPlayWav::position()

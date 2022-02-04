@@ -183,7 +183,7 @@ class AudioPlayWav : public AudioBaseWav, public AudioStream
     uint32_t channelmask;           // dwChannelMask
 		uint16_t _loopCount;
 		bool autorewind;
-
+		bool last;
 		void start(void);
     virtual void update(void);
 		size_t buffer_rd;
