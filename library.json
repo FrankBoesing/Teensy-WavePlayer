@@ -1,7 +1,7 @@
 {
   "name": "Teensy WavePlayer",
   "keywords": "Audio",
-  "description": "Extended Wave Player and Recorder",
+  "description": "Extended Wave Player",
   "authors": [
     {
         "name": "Frank Boesing",
@@ -20,7 +20,7 @@
     "type": "git",
     "url": "https://github.com/FrankBoesing/Teensy-WavePlayer.git"
   },
-  "version": "0.55",
+  "version": "0.60",
   "frameworks": "arduino",
   "platforms": "*"
 }

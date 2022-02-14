@@ -1269,7 +1269,7 @@ void AudioPlayWav::update(void)
     AudioStream::release(queue[chan]);
   } while (++chan < channels);
 
-	if (last && buffer_rd >= sz_mem) stopFromUpdate();
+	if (buffer_rd >= sz_mem && last) stopFromUpdate();
 
 }
 
